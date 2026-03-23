@@ -1,6 +1,7 @@
 #!/bin/bash
 # 运行 Qwen3.5 VLN-CE 导航测试脚本
 # 需在项目根目录 /mnt/data-cpfs/gengshuang/VLN-CE 下执行
+# Habitat 使用 GPU 0，大模型在 GPU 1
 
 export PYTHONPATH=.
 export EGL_DEVICE_ID=0
