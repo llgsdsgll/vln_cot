@@ -13,69 +13,96 @@ import numpy as np
 import torch
 from habitat import Env, logger
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
+from openai import OpenAI
 from tqdm import tqdm
 
 from vlnce_baselines.config.default import get_config
 
+# 动作名称到 HabitatSimActions 的映射，供模型输出解析使用
+ACTION_MAP = {
+    "stop":     HabitatSimActions.STOP,
+    "forward":  HabitatSimActions.MOVE_FORWARD,
+    "left":     HabitatSimActions.TURN_LEFT,
+    "right":    HabitatSimActions.TURN_RIGHT,
+}
+
+SYSTEM_PROMPT = (
+    "You are a navigation agent. Based on the instruction and current step, "
+    "output exactly one action from: stop, forward, left, right. "
+    "Reply with only the action word, nothing else."
+)
+
 
 class QwenNavigationAgent:
-    """Qwen3.5 导航智能体"""
+    """Qwen3.5 导航智能体，通过 vLLM HTTP 接口调用模型"""
 
-    def __init__(self, model_path=None):
+    def __init__(self, server_url="http://0.0.0.0:8000", model_name=None):
         """
-        初始化 Qwen3.5 模型
+        初始化 vLLM 客户端
 
         Args:
-            model_path: Qwen3.5 模型路径
+            server_url: vLLM 服务地址，默认 http://0.0.0.0:8000
+            model_name: 模型名称，若为 None 则自动从服务端查询
         """
-        self.model_path = model_path
-        self.actions = [
-            HabitatSimActions.STOP,
-            HabitatSimActions.MOVE_FORWARD,
-            HabitatSimActions.TURN_LEFT,
-            HabitatSimActions.TURN_RIGHT,
-        ]
+        self.client = OpenAI(
+            base_url=f"{server_url}/v1",
+            api_key="token-abc123",  # vLLM 不校验 key，填任意非空字符串即可
+        )
 
-        # TODO: 加载 Qwen3.5 模型
-        # from transformers import AutoModelForCausalLM, AutoTokenizer
-        # self.model = AutoModelForCausalLM.from_pretrained(model_path)
-        # self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        # 自动获取模型名称（vLLM 部署时模型名即为路径或别名）
+        if model_name is None:
+            models = self.client.models.list()
+            self.model_name = models.data[0].id
+        else:
+            self.model_name = model_name
 
-        logger.info(f"Initializing Qwen3.5 agent with model: {model_path}")
+        self.actions = list(ACTION_MAP.keys())
         self.step_count = 0
+        logger.info(f"Connected to vLLM server at {server_url}, model: {self.model_name}")
+
+    def _build_prompt(self, instruction):
+        """构建发送给 Qwen3.5 的提示词"""
+        return (
+            f"Navigation instruction: {instruction}\n"
+            f"Current step: {self.step_count}\n"
+            f"What is your next action? Choose from: stop, forward, left, right."
+        )
+
+    def _parse_action(self, response_text):
+        """将模型输出文本解析为 HabitatSimActions"""
+        text = response_text.strip().lower()
+        for key, action in ACTION_MAP.items():
+            if key in text:
+                return action
+        # 无法解析时默认前进，避免提前停止
+        logger.warning(f"Cannot parse action from: '{response_text}', defaulting to MOVE_FORWARD")
+        return HabitatSimActions.MOVE_FORWARD
 
     def act(self, observations, instruction):
         """
-        根据观察和指令生成动作
+        根据观察和指令调用 Qwen3.5 生成动作
 
         Args:
-            observations: 环境观察 (RGB, depth, etc.)
+            observations: 环境观察 (RGB, depth 等，当前为纯文本模式暂不使用)
             instruction: 导航指令文本
 
         Returns:
             action: 动作字典 {"action": action_id}
         """
-        # TODO: 实现 Qwen3.5 推理逻辑
-        # 示例实现：随机选择动作（需要替换为实际的 Qwen3.5 推理）
+        prompt = self._build_prompt(instruction)
 
-        # 1. 处理视觉观察
-        # rgb = observations.get('rgb', None)
-        # depth = observations.get('depth', None)
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": prompt},
+            ],
+            max_tokens=16,
+            temperature=0.0,  # 贪心解码，保证可复现
+        )
 
-        # 2. 构建提示词
-        # prompt = f"Instruction: {instruction}\nCurrent step: {self.step_count}\nWhat action should I take?"
-
-        # 3. 使用 Qwen3.5 生成动作
-        # inputs = self.tokenizer(prompt, return_tensors="pt")
-        # outputs = self.model.generate(**inputs)
-        # action_text = self.tokenizer.decode(outputs[0])
-        # action = self._parse_action(action_text)
-
-        # 临时实现：简单的启发式策略
-        if self.step_count < 30:
-            action = HabitatSimActions.MOVE_FORWARD
-        else:
-            action = HabitatSimActions.STOP
+        response_text = response.choices[0].message.content
+        action = self._parse_action(response_text)
 
         self.step_count += 1
         return {"action": action}
@@ -192,10 +219,16 @@ def main():
         help="Path to VLN-CE config file"
     )
     parser.add_argument(
-        "--model-path",
+        "--server-url",
+        type=str,
+        default="http://0.0.0.0:8000",
+        help="vLLM server URL"
+    )
+    parser.add_argument(
+        "--model-name",
         type=str,
         default=None,
-        help="Path to Qwen3.5 model"
+        help="Model name on vLLM server (auto-detected if not specified)"
     )
     parser.add_argument(
         "--split",
@@ -231,8 +264,11 @@ def main():
     np.random.seed(config.TASK_CONFIG.SEED)
     torch.backends.cudnn.deterministic = True
 
-    # 初始化 Qwen 智能体
-    agent = QwenNavigationAgent(model_path=args.model_path)
+    # 初始化 Qwen 智能体（通过 vLLM HTTP 接口）
+    agent = QwenNavigationAgent(
+        server_url=args.server_url,
+        model_name=args.model_name,
+    )
 
     # 运行测试
     test_navigation(
