@@ -1,0 +1,2 @@
+Episode 151: subtask 'Walk Through the arched door on the right' 不在原始指令中
+  原指令: Walk passed the dining table and through the open sliding doors. Walk t Through the arched door on the right. Then walk down the hall to the bedroom doorway. 

@@ -148,10 +148,10 @@ def process_video(video_data, instructions, errors):
     }
 
 def main():
-    input_file = 'gengshuang_1_H.264_03182.json'
-    train_file = '/mnt/data-cpfs/gengshuang/vln_data/vln_ce/raw_data/r2r/train/train.json'
-    output_file = 'gengshuang_1_H.264_03182_processed.json'
-    error_file = 'gengshuang_1_H.264_03182_errors.txt'
+    input_file = 'gengshuang_1_H.264_0324.json'
+    train_file = '/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json'
+    output_file = 'gengshuang_1_H.264_0324_processed.json'
+    error_file = 'gengshuang_1_H.264_0324_errors.txt'
 
     # 加载数据
     with open(input_file, 'r') as f:
