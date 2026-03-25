@@ -1,0 +1,193 @@
+{
+  "name": "imageio-ffmpeg",
+  "version": "0.5.1",
+  "build": "pyhd8ed1ab_0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/noarch",
+  "subdir": "noarch",
+  "fn": "imageio-ffmpeg-0.5.1-pyhd8ed1ab_0.conda",
+  "md5": "5021f0afdabd2071ece04e7fe9776c63",
+  "url": "https://conda.anaconda.org/conda-forge/noarch/imageio-ffmpeg-0.5.1-pyhd8ed1ab_0.conda",
+  "sha256": "3f0e63a73c21c2b080784606344189fc3aa837e02034bcb2f650ac5359940642",
+  "depends": [
+    "ffmpeg",
+    "python >=3",
+    "setuptools"
+  ],
+  "constrains": [],
+  "noarch": "python",
+  "license": "BSD 2-Clause",
+  "package_type": "noarch_python",
+  "timestamp": 1717461753000,
+  "size": 20967,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/imageio-ffmpeg-0.5.1-pyhd8ed1ab_0.conda",
+  "extracted_package_dir": "/opt/conda/pkgs/imageio-ffmpeg-0.5.1-pyhd8ed1ab_0",
+  "files": [
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/INSTALLER",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/LICENSE",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/METADATA",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/RECORD",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/REQUESTED",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/WHEEL",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/direct_url.json",
+    "lib/python3.6/site-packages/imageio_ffmpeg-0.5.1.dist-info/top_level.txt",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__init__.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/_definitions.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/_io.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/_parsing.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/_utils.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/binaries/README.md",
+    "lib/python3.6/site-packages/imageio_ffmpeg/binaries/__init__.py",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/__init__.cpython-36.pyc",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_definitions.cpython-36.pyc",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_io.cpython-36.pyc",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_parsing.cpython-36.pyc",
+    "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_utils.cpython-36.pyc",
+    "lib/python3.6/site-packages/imageio_ffmpeg/binaries/__pycache__/__init__.cpython-36.pyc"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/INSTALLER",
+        "path_type": "hardlink",
+        "sha256": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8",
+        "size_in_bytes": 5,
+        "sha256_in_prefix": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/LICENSE",
+        "path_type": "hardlink",
+        "sha256": "9c9be921bb50efe46473ce89135b037061df5ccdcae97cbf84ace18b0fa89dce",
+        "size_in_bytes": 1312,
+        "sha256_in_prefix": "9c9be921bb50efe46473ce89135b037061df5ccdcae97cbf84ace18b0fa89dce"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/METADATA",
+        "path_type": "hardlink",
+        "sha256": "e4a573b6b4410dc610454cf404ea304cff083174ad58df1d4dcebcb8e57cb217",
+        "size_in_bytes": 1603,
+        "sha256_in_prefix": "e4a573b6b4410dc610454cf404ea304cff083174ad58df1d4dcebcb8e57cb217"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/RECORD",
+        "path_type": "hardlink",
+        "sha256": "9bf75a9d2c2777f61d9d75c5c3f10cd54fea1ce9748c9deea265c84c0ab5b9c5",
+        "size_in_bytes": 1652,
+        "sha256_in_prefix": "9bf75a9d2c2777f61d9d75c5c3f10cd54fea1ce9748c9deea265c84c0ab5b9c5"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/REQUESTED",
+        "path_type": "hardlink",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_in_bytes": 0,
+        "sha256_in_prefix": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/WHEEL",
+        "path_type": "hardlink",
+        "sha256": "189eedfe4581172c1b6a02b97a8f48a14c0b5baa3239e4ca990fbd8871553714",
+        "size_in_bytes": 92,
+        "sha256_in_prefix": "189eedfe4581172c1b6a02b97a8f48a14c0b5baa3239e4ca990fbd8871553714"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/direct_url.json",
+        "path_type": "hardlink",
+        "sha256": "c8b4843b0d31d3461755588a535d0f978dbb27767223142437d83d29a48feb86",
+        "size_in_bytes": 110,
+        "sha256_in_prefix": "c8b4843b0d31d3461755588a535d0f978dbb27767223142437d83d29a48feb86"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg-0.5.1.dist-info/top_level.txt",
+        "path_type": "hardlink",
+        "sha256": "38341851861bb63f48d528c0484318ee1f10f2168bae630d5114829f4144075f",
+        "size_in_bytes": 15,
+        "sha256_in_prefix": "38341851861bb63f48d528c0484318ee1f10f2168bae630d5114829f4144075f"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/__init__.py",
+        "path_type": "hardlink",
+        "sha256": "41afc231dfeca422c692f9a219b51778b7560c5c4dffa097bf92f80872d1fd8a",
+        "size_in_bytes": 227,
+        "sha256_in_prefix": "41afc231dfeca422c692f9a219b51778b7560c5c4dffa097bf92f80872d1fd8a"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/_definitions.py",
+        "path_type": "hardlink",
+        "sha256": "69537aee31579872ebbcf62b27635334cb5dd9d7ae21706d14c78dae70cd17ce",
+        "size_in_bytes": 1739,
+        "sha256_in_prefix": "69537aee31579872ebbcf62b27635334cb5dd9d7ae21706d14c78dae70cd17ce"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/_io.py",
+        "path_type": "hardlink",
+        "sha256": "1a006dd17e5c54ffc66a2b40b6db5586e76e598e1ca15f301e3b70c86b43dfe9",
+        "size_in_bytes": 27048,
+        "sha256_in_prefix": "1a006dd17e5c54ffc66a2b40b6db5586e76e598e1ca15f301e3b70c86b43dfe9"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/_parsing.py",
+        "path_type": "hardlink",
+        "sha256": "514b583f26f3bfdbd0e2c28fc189514f268ffe4f64a0a5df97ecc8e919b8429a",
+        "size_in_bytes": 6840,
+        "sha256_in_prefix": "514b583f26f3bfdbd0e2c28fc189514f268ffe4f64a0a5df97ecc8e919b8429a"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/_utils.py",
+        "path_type": "hardlink",
+        "sha256": "7951789f2f733f78cf7de608c25e957d5f53d6fdf84bac944560bf462194345f",
+        "size_in_bytes": 3833,
+        "sha256_in_prefix": "7951789f2f733f78cf7de608c25e957d5f53d6fdf84bac944560bf462194345f"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/binaries/README.md",
+        "path_type": "hardlink",
+        "sha256": "b0d36dfb1ba1ea5ca873a6f6dbcc2295b7a7944aea875071d91a6aad1870e77d",
+        "size_in_bytes": 45,
+        "sha256_in_prefix": "b0d36dfb1ba1ea5ca873a6f6dbcc2295b7a7944aea875071d91a6aad1870e77d"
+      },
+      {
+        "_path": "site-packages/imageio_ffmpeg/binaries/__init__.py",
+        "path_type": "hardlink",
+        "sha256": "ce39d166833a6d050160e237d07a73229e1c934edb3b2e28c5707e6f0377356f",
+        "size_in_bytes": 45,
+        "sha256_in_prefix": "ce39d166833a6d050160e237d07a73229e1c934edb3b2e28c5707e6f0377356f"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/__init__.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 414
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_definitions.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 1154
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_io.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 14619
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_parsing.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 5379
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/__pycache__/_utils.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 3079
+      },
+      {
+        "_path": "lib/python3.6/site-packages/imageio_ffmpeg/binaries/__pycache__/__init__.cpython-36.pyc",
+        "path_type": "pyc_file",
+        "size_in_bytes": 146
+      }
+    ]
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/imageio-ffmpeg-0.5.1-pyhd8ed1ab_0",
+    "type": 1
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "ld_impl_linux-64",
+  "version": "2.45.1",
+  "build": "bootstrap_ha15bf96_2",
+  "build_number": 2,
+  "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+  "subdir": "linux-64",
+  "fn": "ld_impl_linux-64-2.45.1-bootstrap_ha15bf96_2.conda",
+  "md5": "bafc61899c34054d1f5e7cd85a2f81e9",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.45.1-bootstrap_ha15bf96_2.conda",
+  "sha256": "ffc8fb61b32f421687a35b1b6bdd7e73278da0ea1a0d616b624eb3760ed21742",
+  "depends": [
+    "__glibc >=2.17,<3.0.a0"
+  ],
+  "constrains": [
+    "binutils_impl_linux-64 2.45.1"
+  ],
+  "license": "GPL-3.0-only",
+  "timestamp": 1774197447000,
+  "size": 730756,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/ld_impl_linux-64-2.45.1-bootstrap_ha15bf96_2.conda",
+  "extracted_package_dir": "/opt/conda/pkgs/ld_impl_linux-64-2.45.1-bootstrap_ha15bf96_2",
+  "files": [
+    "bin/x86_64-conda-linux-gnu-ld",
+    "x86_64-conda-linux-gnu/bin/ld"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "bin/x86_64-conda-linux-gnu-ld",
+        "prefix_placeholder": "/home/conda/feedstock_root/build_artifacts/binutils_split_1774197147048/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placeh",
+        "file_mode": "binary",
+        "path_type": "hardlink",
+        "sha256": "77e597bb1dfd38fb82fd53af423adb3e65c6c28b4ba02f9dcde144600a5eec6d",
+        "size_in_bytes": 2917192,
+        "sha256_in_prefix": "5b5c79da1ed6b2509b52fb70bc500ba1d07b82a49e146ed30bc00e2acacd0370"
+      },
+      {
+        "_path": "x86_64-conda-linux-gnu/bin/ld",
+        "path_type": "softlink",
+        "sha256": "77e597bb1dfd38fb82fd53af423adb3e65c6c28b4ba02f9dcde144600a5eec6d",
+        "size_in_bytes": 2917192
+      }
+    ]
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/ld_impl_linux-64-2.45.1-bootstrap_ha15bf96_2",
+    "type": 1
+  }
+}

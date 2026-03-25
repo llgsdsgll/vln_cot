@@ -1,0 +1,36 @@
+{
+  "name": "xz",
+  "version": "5.8.2",
+  "build": "ha02ee65_0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+  "subdir": "linux-64",
+  "fn": "xz-5.8.2-ha02ee65_0.conda",
+  "md5": "d34b831f6d6a9b014eb7cf65f6329bba",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/xz-5.8.2-ha02ee65_0.conda",
+  "sha256": "6d60b1870bdbbaf098bbc7d69e4f4eccb8a6b5e856c2d0aca3c62c0db97e0863",
+  "depends": [
+    "__glibc >=2.17,<3.0.a0",
+    "libgcc >=14",
+    "liblzma 5.8.2 hb03c661_0",
+    "liblzma-devel 5.8.2 hb03c661_0",
+    "xz-gpl-tools 5.8.2 ha02ee65_0",
+    "xz-tools 5.8.2 hb03c661_0"
+  ],
+  "constrains": [],
+  "license": "0BSD AND LGPL-2.1-or-later AND GPL-2.0-or-later",
+  "timestamp": 1768752698000,
+  "size": 24101,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/xz-5.8.2-ha02ee65_0.conda",
+  "extracted_package_dir": "/opt/conda/pkgs/xz-5.8.2-ha02ee65_0",
+  "files": [],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": []
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/xz-5.8.2-ha02ee65_0",
+    "type": 1
+  }
+}

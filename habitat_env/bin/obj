@@ -1,0 +1,4 @@
+#!/mnt/data-cpfs/gengshuang/VLN-CE/habitat_env/bin/python
+# EASY-INSTALL-SCRIPT: 'objectio==0.2.29','obj'
+__requires__ = 'objectio==0.2.29'
+__import__('pkg_resources').run_script('objectio==0.2.29', 'obj')

@@ -1,0 +1,31 @@
+{
+  "name": "habitat-sim-mutex",
+  "version": "1.0",
+  "build": "headless_nobullet",
+  "build_number": 101,
+  "channel": "https://conda.anaconda.org/aihabitat/noarch",
+  "subdir": "noarch",
+  "fn": "habitat-sim-mutex-1.0-headless_nobullet.tar.bz2",
+  "md5": "26814ee192444c37226239952b12ab8e",
+  "url": "https://conda.anaconda.org/aihabitat/noarch/habitat-sim-mutex-1.0-headless_nobullet.tar.bz2",
+  "sha256": "",
+  "depends": [],
+  "constrains": [],
+  "noarch": "generic",
+  "license": "",
+  "package_type": "noarch_generic",
+  "timestamp": 1634924341000,
+  "size": 3525,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/habitat-sim-mutex-1.0-headless_nobullet.tar.bz2",
+  "extracted_package_dir": "/opt/conda/pkgs/habitat-sim-mutex-1.0-headless_nobullet",
+  "files": [],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": []
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/habitat-sim-mutex-1.0-headless_nobullet",
+    "type": 1
+  }
+}

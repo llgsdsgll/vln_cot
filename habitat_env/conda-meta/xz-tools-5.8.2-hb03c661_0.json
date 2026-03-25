@@ -1,0 +1,182 @@
+{
+  "name": "xz-tools",
+  "version": "5.8.2",
+  "build": "hb03c661_0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+  "subdir": "linux-64",
+  "fn": "xz-tools-5.8.2-hb03c661_0.conda",
+  "md5": "dfd6129671f782988d665354e7aa269d",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/xz-tools-5.8.2-hb03c661_0.conda",
+  "sha256": "65c8a236b89a4ad24565a986b7c00b8cb2906af52fd9963730c44ea56a9fde9a",
+  "depends": [
+    "__glibc >=2.17,<3.0.a0",
+    "libgcc >=14",
+    "liblzma 5.8.2 hb03c661_0"
+  ],
+  "constrains": [
+    "xz 5.8.2.*"
+  ],
+  "license": "0BSD AND LGPL-2.1-or-later",
+  "timestamp": 1768752662000,
+  "size": 96093,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/xz-tools-5.8.2-hb03c661_0",
+  "extracted_package_dir": "/opt/conda/pkgs/xz-tools-5.8.2-hb03c661_0",
+  "files": [
+    "bin/lzcat",
+    "bin/lzma",
+    "bin/lzmadec",
+    "bin/lzmainfo",
+    "bin/unlzma",
+    "bin/unxz",
+    "bin/xz",
+    "bin/xzcat",
+    "bin/xzdec",
+    "share/doc/xz/COPYING.0BSD",
+    "share/man/man1/lzcat.1",
+    "share/man/man1/lzma.1",
+    "share/man/man1/lzmadec.1",
+    "share/man/man1/lzmainfo.1",
+    "share/man/man1/unlzma.1",
+    "share/man/man1/unxz.1",
+    "share/man/man1/xz.1",
+    "share/man/man1/xzcat.1",
+    "share/man/man1/xzdec.1"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "bin/lzcat",
+        "path_type": "softlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768
+      },
+      {
+        "_path": "bin/lzma",
+        "path_type": "softlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768
+      },
+      {
+        "_path": "bin/lzmadec",
+        "path_type": "hardlink",
+        "sha256": "d03ae473e709b7cab984fb8021c4844b42845fe568ffe53ec7a03624b24e12ad",
+        "size_in_bytes": 21904,
+        "sha256_in_prefix": "d03ae473e709b7cab984fb8021c4844b42845fe568ffe53ec7a03624b24e12ad"
+      },
+      {
+        "_path": "bin/lzmainfo",
+        "prefix_placeholder": "/home/conda/feedstock_root/build_artifacts/xz-split_1768752414388/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_pl",
+        "file_mode": "binary",
+        "path_type": "hardlink",
+        "sha256": "049d7323d87cc386ac4763c7e1742cf3d6fcecd6188fa59ee1052c3ac5d60d92",
+        "size_in_bytes": 26336,
+        "sha256_in_prefix": "152cdcb84ced2f0cf079019517b1fd9757ea36d25ba463a2144f15bc2b4199af"
+      },
+      {
+        "_path": "bin/unlzma",
+        "path_type": "softlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768
+      },
+      {
+        "_path": "bin/unxz",
+        "path_type": "softlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768
+      },
+      {
+        "_path": "bin/xz",
+        "prefix_placeholder": "/home/conda/feedstock_root/build_artifacts/xz-split_1768752414388/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_pl",
+        "file_mode": "binary",
+        "path_type": "hardlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768,
+        "sha256_in_prefix": "102e3681730d35d21d20b36f36856e4548c1742929d74f251c1d679636987c7e"
+      },
+      {
+        "_path": "bin/xzcat",
+        "path_type": "softlink",
+        "sha256": "40f58502595896a4dc7f9c6c166488a4d458046aab2bbcb6535b3120f5a06be8",
+        "size_in_bytes": 117768
+      },
+      {
+        "_path": "bin/xzdec",
+        "path_type": "hardlink",
+        "sha256": "4e2b39455a33239c4895aa563a80813f6e74c4774ce104f9efbd4c9383567e77",
+        "size_in_bytes": 21904,
+        "sha256_in_prefix": "4e2b39455a33239c4895aa563a80813f6e74c4774ce104f9efbd4c9383567e77"
+      },
+      {
+        "_path": "share/doc/xz/COPYING.0BSD",
+        "path_type": "hardlink",
+        "sha256": "0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1",
+        "size_in_bytes": 607,
+        "sha256_in_prefix": "0b01625d853911cd0e2e088dcfb743261034a091bb379246cb25a14cc4c74bf1"
+      },
+      {
+        "_path": "share/man/man1/lzcat.1",
+        "path_type": "softlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349
+      },
+      {
+        "_path": "share/man/man1/lzma.1",
+        "path_type": "softlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349
+      },
+      {
+        "_path": "share/man/man1/lzmadec.1",
+        "path_type": "softlink",
+        "sha256": "f76956a912083452e30c06cb3c45958cd789b5a2b099188be42fbeff023fceef",
+        "size_in_bytes": 2768
+      },
+      {
+        "_path": "share/man/man1/lzmainfo.1",
+        "path_type": "hardlink",
+        "sha256": "31ffd26a376af65fbf2c04841f16d6433321ba49456f4ded396bebecc9ebf4c6",
+        "size_in_bytes": 1180,
+        "sha256_in_prefix": "31ffd26a376af65fbf2c04841f16d6433321ba49456f4ded396bebecc9ebf4c6"
+      },
+      {
+        "_path": "share/man/man1/unlzma.1",
+        "path_type": "softlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349
+      },
+      {
+        "_path": "share/man/man1/unxz.1",
+        "path_type": "softlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349
+      },
+      {
+        "_path": "share/man/man1/xz.1",
+        "path_type": "hardlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349,
+        "sha256_in_prefix": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2"
+      },
+      {
+        "_path": "share/man/man1/xzcat.1",
+        "path_type": "softlink",
+        "sha256": "33ecb0be784a815e4644fd67a4dbcd13d39f758e5667f2709d7cca55aec857f2",
+        "size_in_bytes": 77349
+      },
+      {
+        "_path": "share/man/man1/xzdec.1",
+        "path_type": "hardlink",
+        "sha256": "f76956a912083452e30c06cb3c45958cd789b5a2b099188be42fbeff023fceef",
+        "size_in_bytes": 2768,
+        "sha256_in_prefix": "f76956a912083452e30c06cb3c45958cd789b5a2b099188be42fbeff023fceef"
+      }
+    ]
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/xz-tools-5.8.2-hb03c661_0",
+    "type": 1
+  }
+}

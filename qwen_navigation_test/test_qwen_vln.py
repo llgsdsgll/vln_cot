@@ -5,15 +5,17 @@ Qwen3.5 VLN-CE Navigation Test Script
 """
 
 import argparse
+import base64
 import json
 import os
 from collections import defaultdict
 
+import cv2
 import numpy as np
+import requests
 import torch
 from habitat import Env, logger
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
-from openai import OpenAI
 from tqdm import tqdm
 
 from vlnce_baselines.config.default import get_config
@@ -27,8 +29,10 @@ ACTION_MAP = {
 }
 
 SYSTEM_PROMPT = (
-    "You are a navigation agent. Based on the instruction and current step, "
-    "output exactly one action from: stop, forward, left, right. "
+    "You are an embodied navigation agent. You will be given a navigation instruction "
+    "and a first-person RGB image of your current view from a simulator. "
+    "Based on the image and the instruction, output exactly one action from: "
+    "stop, forward, left, right. "
     "Reply with only the action word, nothing else."
 )
 
@@ -38,35 +42,56 @@ class QwenNavigationAgent:
 
     def __init__(self, server_url="http://0.0.0.0:8000", model_name=None):
         """
-        初始化 vLLM 客户端
+        初始化 vLLM 客户端（使用 requests 直接调用 OpenAI 兼容 HTTP 接口）
 
         Args:
             server_url: vLLM 服务地址，默认 http://0.0.0.0:8000
             model_name: 模型名称，若为 None 则自动从服务端查询
         """
-        self.client = OpenAI(
-            base_url=f"{server_url}/v1",
-            api_key="token-abc123",  # vLLM 不校验 key，填任意非空字符串即可
-        )
+        self.base_url = server_url.rstrip("/") + "/v1"
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer token-abc123",  # vLLM 不校验 key，填任意非空字符串即可
+        }
 
         # 自动获取模型名称（vLLM 部署时模型名即为路径或别名）
         if model_name is None:
-            models = self.client.models.list()
-            self.model_name = models.data[0].id
+            resp = requests.get(f"{self.base_url}/models", headers=self.headers, timeout=30)
+            resp.raise_for_status()
+            self.model_name = resp.json()["data"][0]["id"]
         else:
             self.model_name = model_name
 
         self.actions = list(ACTION_MAP.keys())
         self.step_count = 0
-        logger.info(f"Connected to vLLM server at {server_url}, model: {self.model_name}")
+        logger.info("Connected to vLLM server at {}, model: {}".format(server_url, self.model_name))
 
     def _build_prompt(self, instruction):
-        """构建发送给 Qwen3.5 的提示词"""
+        """构建发送给 Qwen3.5 的文本提示词"""
         return (
-            f"Navigation instruction: {instruction}\n"
-            f"Current step: {self.step_count}\n"
-            f"What is your next action? Choose from: stop, forward, left, right."
-        )
+            "Navigation instruction: {}\n"
+            "Current step: {}\n"
+            "What is your next action? Choose from: stop, forward, left, right."
+        ).format(instruction, self.step_count)
+
+    @staticmethod
+    def _encode_rgb(rgb_obs):
+        """
+        将 Habitat RGB 观察（numpy uint8 HxWx3，RGB 通道顺序）编码为 base64 JPEG 字符串。
+
+        Args:
+            rgb_obs: numpy array, shape (H, W, 3), dtype uint8, RGB 顺序
+
+        Returns:
+            data_uri: str, 形如 "data:image/jpeg;base64,<b64data>"
+        """
+        # Habitat 输出 RGB，cv2 编码需要 BGR
+        bgr = cv2.cvtColor(rgb_obs.astype(np.uint8), cv2.COLOR_RGB2BGR)
+        success, buf = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not success:
+            raise RuntimeError("cv2.imencode failed when encoding RGB observation")
+        b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+        return "data:image/jpeg;base64," + b64
 
     def _parse_action(self, response_text):
         """将模型输出文本解析为 HabitatSimActions"""
@@ -80,10 +105,10 @@ class QwenNavigationAgent:
 
     def act(self, observations, instruction):
         """
-        根据观察和指令调用 Qwen3.5 生成动作
+        根据第一人称 RGB 观察和导航指令调用 Qwen3.5 生成动作
 
         Args:
-            observations: 环境观察 (RGB, depth 等，当前为纯文本模式暂不使用)
+            observations: Habitat 环境观察字典，包含 "rgb" 键 (H x W x 3 uint8, RGB)
             instruction: 导航指令文本
 
         Returns:
@@ -91,17 +116,39 @@ class QwenNavigationAgent:
         """
         prompt = self._build_prompt(instruction)
 
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": prompt},
-            ],
-            max_tokens=16,
-            temperature=0.0,  # 贪心解码，保证可复现
-        )
+        # 提取并编码第一人称 RGB 图像
+        rgb_obs = observations["rgb"]  # shape: (H, W, 3), dtype: uint8
+        image_data_uri = self._encode_rgb(rgb_obs)
 
-        response_text = response.choices[0].message.content
+        # 构建多模态消息：图像 + 文本
+        user_content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": image_data_uri},
+            },
+            {
+                "type": "text",
+                "text": prompt,
+            },
+        ]
+
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": user_content},
+            ],
+            "max_tokens": 16,
+            "temperature": 0.0,  # 贪心解码，保证可复现
+        }
+        resp = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=self.headers,
+            json=payload,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        response_text = resp.json()["choices"][0]["message"]["content"]
         action = self._parse_action(response_text)
 
         self.step_count += 1

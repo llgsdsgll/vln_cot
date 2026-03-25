@@ -1,0 +1,31 @@
+{
+  "name": "matplotlib",
+  "version": "3.3.2",
+  "build": "0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+  "subdir": "linux-64",
+  "fn": "matplotlib-3.3.2-0.tar.bz2",
+  "md5": "17a0b9dba1fc475c5ffe79ab7a817b94",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/matplotlib-3.3.2-0.tar.bz2",
+  "sha256": "c816909a84e8622358e58e86209a55667426bee4c73e4ecb7ef3ce2aa4d07972",
+  "depends": [
+    "matplotlib-base >=3.3.2,<3.3.3.0a0"
+  ],
+  "constrains": [],
+  "license": "LicenseRef-PSF-based",
+  "timestamp": 1600159329000,
+  "size": 6174,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/matplotlib-3.3.2-0.tar.bz2",
+  "extracted_package_dir": "/opt/conda/pkgs/matplotlib-3.3.2-0",
+  "files": [],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": []
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/matplotlib-3.3.2-0",
+    "type": 1
+  }
+}

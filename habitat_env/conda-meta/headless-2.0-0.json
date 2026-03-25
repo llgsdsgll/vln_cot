@@ -1,0 +1,34 @@
+{
+  "name": "headless",
+  "version": "2.0",
+  "build": "0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/aihabitat/noarch",
+  "subdir": "noarch",
+  "fn": "headless-2.0-0.tar.bz2",
+  "md5": "a0a4403931373469c495a35f78e7ce5b",
+  "url": "https://conda.anaconda.org/aihabitat/noarch/headless-2.0-0.tar.bz2",
+  "sha256": "",
+  "depends": [
+    "habitat-sim-mutex 1.0 headless_*"
+  ],
+  "constrains": [],
+  "track_features": "headless",
+  "noarch": "generic",
+  "license": "",
+  "package_type": "noarch_generic",
+  "timestamp": 1634924360000,
+  "size": 3295,
+  "requested_spec": "headless",
+  "package_tarball_full_path": "/opt/conda/pkgs/headless-2.0-0.tar.bz2",
+  "extracted_package_dir": "/opt/conda/pkgs/headless-2.0-0",
+  "files": [],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": []
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/headless-2.0-0",
+    "type": 1
+  }
+}

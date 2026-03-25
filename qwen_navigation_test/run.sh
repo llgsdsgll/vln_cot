@@ -4,12 +4,10 @@
 # Habitat 使用 GPU 0，大模型在 GPU 1
 
 export PYTHONPATH=.
-export EGL_DEVICE_ID=0
 export CUDA_VISIBLE_DEVICES=0
 
-conda run -n habitat bash -c "
+conda run -p /mnt/data-cpfs/gengshuang/VLN-CE/habitat_env bash -c "
 export PYTHONPATH=.
-export EGL_DEVICE_ID=0
 export CUDA_VISIBLE_DEVICES=0
 
 python3 qwen_navigation_test/test_qwen_vln.py \

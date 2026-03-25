@@ -1,0 +1,188 @@
+{
+  "name": "quaternion",
+  "version": "2021.8.30.10.33.11",
+  "build": "py36h8f6f2f9_0",
+  "build_number": 0,
+  "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+  "subdir": "linux-64",
+  "fn": "quaternion-2021.8.30.10.33.11-py36h8f6f2f9_0.tar.bz2",
+  "md5": "ac2a97f201c87dee48eee404c4f21585",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/quaternion-2021.8.30.10.33.11-py36h8f6f2f9_0.tar.bz2",
+  "sha256": "3b1ab016df34af60aded45c533bc3f649acfa3800eb1f5fe4e4140752bafca7e",
+  "depends": [
+    "libgcc-ng >=9.4.0",
+    "numpy >=1.19.5,<2.0a0",
+    "python >=3.6,<3.7.0a0",
+    "python_abi 3.6.* *_cp36m"
+  ],
+  "constrains": [],
+  "license": "MIT",
+  "timestamp": 1630353336000,
+  "size": 91139,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/opt/conda/pkgs/quaternion-2021.8.30.10.33.11-py36h8f6f2f9_0.tar.bz2",
+  "extracted_package_dir": "/opt/conda/pkgs/quaternion-2021.8.30.10.33.11-py36h8f6f2f9_0",
+  "files": [
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/INSTALLER",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/LICENSE",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/METADATA",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/RECORD",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/REQUESTED",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/WHEEL",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/direct_url.json",
+    "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/top_level.txt",
+    "lib/python3.6/site-packages/quaternion/__init__.py",
+    "lib/python3.6/site-packages/quaternion/__pycache__/__init__.cpython-36.pyc",
+    "lib/python3.6/site-packages/quaternion/__pycache__/calculus.cpython-36.pyc",
+    "lib/python3.6/site-packages/quaternion/__pycache__/means.cpython-36.pyc",
+    "lib/python3.6/site-packages/quaternion/__pycache__/numba_wrapper.cpython-36.pyc",
+    "lib/python3.6/site-packages/quaternion/__pycache__/quaternion_time_series.cpython-36.pyc",
+    "lib/python3.6/site-packages/quaternion/calculus.py",
+    "lib/python3.6/site-packages/quaternion/means.py",
+    "lib/python3.6/site-packages/quaternion/numba_wrapper.py",
+    "lib/python3.6/site-packages/quaternion/numpy_quaternion.cpython-36m-x86_64-linux-gnu.so",
+    "lib/python3.6/site-packages/quaternion/quaternion_time_series.py"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/INSTALLER",
+        "path_type": "hardlink",
+        "sha256": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8",
+        "size_in_bytes": 5,
+        "sha256_in_prefix": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/LICENSE",
+        "path_type": "hardlink",
+        "sha256": "f3d7e14a1abd07d0e5579a2207399a5785dfa97375412237b6cbc224947e8165",
+        "size_in_bytes": 1080,
+        "sha256_in_prefix": "f3d7e14a1abd07d0e5579a2207399a5785dfa97375412237b6cbc224947e8165"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/METADATA",
+        "path_type": "hardlink",
+        "sha256": "5e9112074b8fc7bda8c8b4ebf266ab6d8a821aae1fa5ef710a32c2b70a3a6cfb",
+        "size_in_bytes": 1561,
+        "sha256_in_prefix": "5e9112074b8fc7bda8c8b4ebf266ab6d8a821aae1fa5ef710a32c2b70a3a6cfb"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/RECORD",
+        "path_type": "hardlink",
+        "sha256": "71f0820c739ca786036cf41b7171b9218ecc6af0eca3170fb5421cc909aba2d6",
+        "size_in_bytes": 1644,
+        "sha256_in_prefix": "71f0820c739ca786036cf41b7171b9218ecc6af0eca3170fb5421cc909aba2d6"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/REQUESTED",
+        "path_type": "hardlink",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_in_bytes": 0,
+        "sha256_in_prefix": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/WHEEL",
+        "path_type": "hardlink",
+        "sha256": "ded82f94b9c6983ed64db4a253ef600ed4445d4acbeb7de6811b59a7999685ab",
+        "size_in_bytes": 104,
+        "sha256_in_prefix": "ded82f94b9c6983ed64db4a253ef600ed4445d4acbeb7de6811b59a7999685ab"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/direct_url.json",
+        "path_type": "hardlink",
+        "sha256": "e3a5af2cb854c058c8e987a389f900f9c0a628e71bd6db4cfe3ea9f2a828a940",
+        "size_in_bytes": 106,
+        "sha256_in_prefix": "e3a5af2cb854c058c8e987a389f900f9c0a628e71bd6db4cfe3ea9f2a828a940"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/numpy_quaternion-2021.8.30.10.33.11.dist-info/top_level.txt",
+        "path_type": "hardlink",
+        "sha256": "f953c4e02ee50fedd9cbbb89fa91f958ea64c6b23661c5051a489c558b55634f",
+        "size_in_bytes": 11,
+        "sha256_in_prefix": "f953c4e02ee50fedd9cbbb89fa91f958ea64c6b23661c5051a489c558b55634f"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__init__.py",
+        "path_type": "hardlink",
+        "sha256": "7774fd68743a44d0864f39f4c8d6921944318cea3af26917ee5948977dc63912",
+        "size_in_bytes": 33993,
+        "sha256_in_prefix": "7774fd68743a44d0864f39f4c8d6921944318cea3af26917ee5948977dc63912"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__pycache__/__init__.cpython-36.pyc",
+        "path_type": "hardlink",
+        "sha256": "0bd344bec211a44e89adb62706a94118e83f0fd2f9e06bb9a4f91d20d1948878",
+        "size_in_bytes": 30893,
+        "sha256_in_prefix": "0bd344bec211a44e89adb62706a94118e83f0fd2f9e06bb9a4f91d20d1948878"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__pycache__/calculus.cpython-36.pyc",
+        "path_type": "hardlink",
+        "sha256": "d02463f844e20986d7cb9114b1dbb5e691b9395b7c7b0a1a41cbdc246dae7580",
+        "size_in_bytes": 14073,
+        "sha256_in_prefix": "d02463f844e20986d7cb9114b1dbb5e691b9395b7c7b0a1a41cbdc246dae7580"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__pycache__/means.cpython-36.pyc",
+        "path_type": "hardlink",
+        "sha256": "89b76ff5e81eedf1a9400f8ad03acffa167d3bc0657312fbdfe67c2a322c276a",
+        "size_in_bytes": 3144,
+        "sha256_in_prefix": "89b76ff5e81eedf1a9400f8ad03acffa167d3bc0657312fbdfe67c2a322c276a"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__pycache__/numba_wrapper.cpython-36.pyc",
+        "path_type": "hardlink",
+        "sha256": "cf13a8a0e988a786a8c8a439c972828fdaecd9e590a41b323d7838a5fd8c1047",
+        "size_in_bytes": 1141,
+        "sha256_in_prefix": "cf13a8a0e988a786a8c8a439c972828fdaecd9e590a41b323d7838a5fd8c1047"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/__pycache__/quaternion_time_series.cpython-36.pyc",
+        "path_type": "hardlink",
+        "sha256": "42613f4c602250eb9bc034894ec803309bd2eb155d3001d563530aa42902aebd",
+        "size_in_bytes": 12577,
+        "sha256_in_prefix": "42613f4c602250eb9bc034894ec803309bd2eb155d3001d563530aa42902aebd"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/calculus.py",
+        "path_type": "hardlink",
+        "sha256": "15a8852f5fb2aadcd50b1ce1916cd513eb13d26211d52135166eb055b82899b7",
+        "size_in_bytes": 18450,
+        "sha256_in_prefix": "15a8852f5fb2aadcd50b1ce1916cd513eb13d26211d52135166eb055b82899b7"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/means.py",
+        "path_type": "hardlink",
+        "sha256": "254e975e3433be0bee40d20db8c1f1aa3660e199fb39dcc36113573b1342f4fe",
+        "size_in_bytes": 2990,
+        "sha256_in_prefix": "254e975e3433be0bee40d20db8c1f1aa3660e199fb39dcc36113573b1342f4fe"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/numba_wrapper.py",
+        "path_type": "hardlink",
+        "sha256": "0dfa8c8bf5daac92bc8d5420d3a1e93f95cb6600c664167ed39a1d7fe2778f8c",
+        "size_in_bytes": 1178,
+        "sha256_in_prefix": "0dfa8c8bf5daac92bc8d5420d3a1e93f95cb6600c664167ed39a1d7fe2778f8c"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/numpy_quaternion.cpython-36m-x86_64-linux-gnu.so",
+        "path_type": "hardlink",
+        "sha256": "ff023e07ef6b639550e4a3c176d1808e99cb694e55b24ac0483d47eed8695c76",
+        "size_in_bytes": 147616,
+        "sha256_in_prefix": "ff023e07ef6b639550e4a3c176d1808e99cb694e55b24ac0483d47eed8695c76"
+      },
+      {
+        "_path": "lib/python3.6/site-packages/quaternion/quaternion_time_series.py",
+        "path_type": "hardlink",
+        "sha256": "dcf0bd866b0e95c1f95f32c2a994e6512d25bd024d8482f90824ec60abc702f4",
+        "size_in_bytes": 17358,
+        "sha256_in_prefix": "dcf0bd866b0e95c1f95f32c2a994e6512d25bd024d8482f90824ec60abc702f4"
+      }
+    ]
+  },
+  "link": {
+    "source": "/opt/conda/pkgs/quaternion-2021.8.30.10.33.11-py36h8f6f2f9_0",
+    "type": 1
+  }
+}
