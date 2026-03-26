@@ -617,6 +617,7 @@ class VLNDataSynthesizer:
 
                 for record in records:
                     out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                out_f.flush()
 
                 total_records += len(records)
 
