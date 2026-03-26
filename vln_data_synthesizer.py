@@ -18,6 +18,7 @@ VLN CoT 数据合成脚本
       --api-base-url  本地 VLM 服务地址（默认 http://localhost:8000/v1）
       --model         模型名称，与服务端部署名一致（默认 /mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8）
       --max-retries   VLM API 最大重试次数（默认 3）
+      --invalid-frame-policy 无效输出的处理策略（默认 skip）
       --episode-ids   只处理指定 episode（如 --episode-ids 1 6 7）
 
 本地服务映射命令（参考）：
@@ -35,6 +36,7 @@ from typing import Any, Optional
 
 import cv2
 import openai
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Prompt 模板 —— 抽离为全局变量，方便随时修改
@@ -42,14 +44,24 @@ import openai
 
 # 有目标物体可见时使用
 PROMPT_TEMPLATE = """\
-You are generating supervised Chain-of-Thought (CoT) data for a Vision-Language Navigation (VLN) agent.
+You are generating teacher Chain-of-Thought (CoT) data for a Vision-Language Navigation (VLN) agent.
+
+Return exactly one compact JSON object and nothing else.
+Required keys:
+- step1_task_progress
+- step2_spatial_perception
+- step3_decision_logic
+- step4_memory_update
 
 Rules:
 1. Use only the provided ground-truth state and the current image. Do not hallucinate.
-2. Output must match the Markdown template exactly.
-3. Keep each step concise: 1-2 sentences only.
-4. Do not output XML, code fences, notes, or any extra text.
-5. Under **Final Action:** output exactly the token "{next_action}" and nothing else.
+2. Keep each text field concise: 1-2 sentences only.
+3. Summarize the trajectory memory instead of copying every past step verbatim.
+4. Write actual reasoning content, not meta-instructions or copied placeholders.
+5. `step2_spatial_perception` should describe the target's relative screen position and visible appearance; the exact object name and bbox will be inserted programmatically.
+6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
+7. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+8. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -66,28 +78,35 @@ Rules:
 <Image>
 
 [Task Requirements]:
-Based on the image and the ground-truth state, generate the reasoning text strictly following the Markdown format below. Do NOT output any other conversational text.
-
-**Reasoning Process:**
-Step 1: Task Progress. State what has been completed from the memory and name the current active sub-task "{current_subtask}".
-Step 2: Spatial Perception. Explicitly say that you see the '{target_object_name}' and that it is located at the exact bounding box {bbox_norm}. Describe its relative screen position.
-Step 3: Decision Logic. Explain why the action '{next_action}' is necessary right now using the visible target and the current sub-task.
-Step 4: Memory Update. Provide one concise sentence summarizing this observation and decision.
-
-**Final Action:**
-{next_action}\
+Based on the image and the ground-truth state, return a compact JSON object such as:
+{{
+  "step1_task_progress": "<actual concise reasoning here>",
+  "step2_spatial_perception": "<actual concise reasoning here>",
+  "step3_decision_logic": "<actual concise reasoning here>",
+  "step4_memory_update": "<actual concise reasoning here>"
+}}\
 """
 
 # 目标物体不可见时使用
 PROMPT_TEMPLATE_NO_TARGET = """\
-You are generating supervised Chain-of-Thought (CoT) data for a Vision-Language Navigation (VLN) agent.
+You are generating teacher Chain-of-Thought (CoT) data for a Vision-Language Navigation (VLN) agent.
+
+Return exactly one compact JSON object and nothing else.
+Required keys:
+- step1_task_progress
+- step2_spatial_perception
+- step3_decision_logic
+- step4_memory_update
 
 Rules:
 1. Use only the provided ground-truth state and the current image. Do not hallucinate.
-2. Output must match the Markdown template exactly.
-3. Keep each step concise: 1-2 sentences only.
-4. Do not output XML, code fences, notes, or any extra text.
-5. Under **Final Action:** output exactly the token "{next_action}" and nothing else.
+2. Keep each text field concise: 1-2 sentences only.
+3. Summarize the trajectory memory instead of copying every past step verbatim.
+4. Write actual reasoning content, not meta-instructions or copied placeholders.
+5. `step2_spatial_perception` must explicitly state that the target is not visible in the current frame and must not invent a bounding box.
+6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
+7. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+8. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -103,23 +122,20 @@ Rules:
 <Image>
 
 [Task Requirements]:
-Based on the image and the ground-truth state, generate the reasoning text strictly following the Markdown format below. Do NOT output any other conversational text.
-
-**Reasoning Process:**
-Step 1: Task Progress. State what has been completed from the memory and name the current active sub-task "{current_subtask}".
-Step 2: Spatial Perception. State that the target object is currently not visible in the field of view. Do NOT hallucinate any bounding boxes.
-Step 3: Decision Logic. Explain why exploring via the action '{next_action}' is the most reasonable choice.
-Step 4: Memory Update. Provide one concise sentence stating the target was unseen and the exploration decision made.
-
-**Final Action:**
-{next_action}\
+Based on the image and the ground-truth state, return a compact JSON object such as:
+{{
+  "step1_task_progress": "<actual concise reasoning here>",
+  "step2_spatial_perception": "<actual concise reasoning here>",
+  "step3_decision_logic": "<actual concise reasoning here>",
+  "step4_memory_update": "<actual concise reasoning here>"
+}}\
 """
 
 SYSTEM_PROMPT = """\
 You are a careful VLN data generator.
-Return only the requested Markdown template.
+Return only one compact JSON object with the requested keys.
 Every field must be faithful to the provided ground-truth state.
-The final action token must exactly match the requested action.
+Do not output Markdown or any explanatory text.
 """
 
 # 动作编码映射
@@ -134,15 +150,77 @@ VALID_ACTIONS = set(ACTION_MAP.values())
 MAX_STEP_CHARS = 400
 MAX_TOTAL_CHARS = 1600
 
-RESPONSE_PATTERN = re.compile(
-    r"\*\*Reasoning Process:?\*\*\s*"
-    r"Step 1:\s*Task Progress\.\s*(?P<step1>.*?)\s*"
-    r"Step 2:\s*Spatial Perception\.\s*(?P<step2>.*?)\s*"
-    r"Step 3:\s*Decision Logic\.\s*(?P<step3>.*?)\s*"
-    r"Step 4:\s*Memory Update\.\s*(?P<step4>.*?)\s*"
-    r"\*\*Final Action:?\*\*\s*(?P<action>[A-Za-z_ -]+)\s*$",
-    re.DOTALL,
-)
+
+def collapse_whitespace(text: str) -> str:
+    """将连续空白压缩为单个空格。"""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def strip_leading_label(text: str, label: str) -> str:
+    """移除模型偶尔重复输出的字段标签。"""
+    pattern = rf"^(?:step\s*\d+\s*[:.-]?\s*)?(?:{re.escape(label)}\s*[:.-]?\s*)?"
+    return re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+
+
+class StructuredTeacherTrace(BaseModel):
+    """教师模型的结构化思维链输出。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step1_task_progress: str = Field(...)
+    step2_spatial_perception: str = Field(...)
+    step3_decision_logic: str = Field(...)
+    step4_memory_update: str = Field(...)
+
+    @field_validator(
+        "step1_task_progress",
+        "step2_spatial_perception",
+        "step3_decision_logic",
+        "step4_memory_update",
+    )
+    @classmethod
+    def validate_text_field(cls, value: str, info: ValidationInfo) -> str:
+        text = collapse_whitespace(value)
+        text = strip_leading_label(text, info.field_name.replace("_", " "))
+        if not text:
+            raise ValueError("must not be empty")
+        if len(text) > MAX_STEP_CHARS:
+            raise ValueError(f"must be <= {MAX_STEP_CHARS} chars")
+        return text
+
+    @model_validator(mode="after")
+    def validate_semantics(self, info: ValidationInfo) -> "StructuredTeacherTrace":
+        context = info.context or {}
+        target_visible = context.get("target_visible", False)
+        action_mentions = context.get("action_mentions", ())
+
+        total_len = (
+            len(self.step1_task_progress)
+            + len(self.step2_spatial_perception)
+            + len(self.step3_decision_logic)
+            + len(self.step4_memory_update)
+        )
+        if total_len > MAX_TOTAL_CHARS:
+            raise ValueError(f"reasoning text too long: {total_len} > {MAX_TOTAL_CHARS}")
+
+        if target_visible:
+            step2_lower = self.step2_spatial_perception.lower()
+            if any(phrase in step2_lower for phrase in ("not visible", "not in view", "unseen")):
+                raise ValueError("step2 should describe a visible target, not say it is unseen")
+        else:
+            step2_lower = self.step2_spatial_perception.lower()
+            if not any(phrase in step2_lower for phrase in ("not visible", "not in view", "unseen")):
+                raise ValueError("step2 must say the target is not visible")
+
+        if action_mentions and not any(
+            mention in self.step3_decision_logic.lower() for mention in action_mentions
+        ):
+            raise ValueError("step3 must mention the chosen action")
+
+        return self
+
+
+STRUCTURED_TRACE_JSON_SCHEMA = StructuredTeacherTrace.model_json_schema()
 
 # ---------------------------------------------------------------------------
 # 日志配置
@@ -175,6 +253,7 @@ class VLNDataSynthesizer:
         max_retries: int = 3,
         api_base_url: str = "http://localhost:8000/v1",
         model_name: str = "/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8",
+        invalid_frame_policy: str = "skip",
     ) -> None:
         """
         初始化合成器。
@@ -185,6 +264,9 @@ class VLNDataSynthesizer:
                            默认指向 SSH 隧道映射的 8000 端口。
             model_name:    服务端部署的模型名称，需与 vLLM --served-model-name 一致。
                            可通过 GET /v1/models 确认实际名称。
+            invalid_frame_policy:
+                           当模型多次返回不合格结果时的处理方式。
+                           ``"skip"`` 表示跳过该帧，``"template"`` 表示使用脚本兜底模板。
         """
         self.max_retries = max_retries
         self._client = openai.OpenAI(
@@ -192,10 +274,13 @@ class VLNDataSynthesizer:
             base_url=api_base_url,
         )
         self._model_name = model_name
+        self.invalid_frame_policy = invalid_frame_policy
+        self._use_json_object_response_format = True
         logger.info(
-            "VLM 客户端初始化完成 | base_url=%s | model=%s",
+            "VLM 客户端初始化完成 | base_url=%s | model=%s | invalid_policy=%s",
             api_base_url,
             model_name,
+            invalid_frame_policy,
         )
 
     # ------------------------------------------------------------------
@@ -243,22 +328,6 @@ class VLNDataSynthesizer:
             action_str:     当前帧执行的动作字符串（如 ``"MOVE_FORWARD"``）。
         """
         script_memory.append(f"Step {frame_idx}: Executed {action_str}.")
-
-    @staticmethod
-    def _collapse_whitespace(text: str) -> str:
-        """将连续空白压缩为单个空格。"""
-        return re.sub(r"\s+", " ", text).strip()
-
-    @staticmethod
-    def _normalize_action_token(action_text: str) -> Optional[str]:
-        """
-        将模型输出的动作字符串标准化为 ``MOVE_FORWARD`` 等 canonical token。
-
-        仅接受大小写、空格、连字符差异；若存在额外解释文本，则返回 ``None``。
-        """
-        normalized = VLNDataSynthesizer._collapse_whitespace(action_text)
-        normalized = normalized.replace("-", "_").replace(" ", "_").upper()
-        return normalized if normalized in VALID_ACTIONS else None
 
     @staticmethod
     def _relative_position_from_bbox(bbox_norm: list[int]) -> str:
@@ -321,93 +390,87 @@ class VLNDataSynthesizer:
         completed_subtasks_str = str(completed_subtasks) if completed_subtasks else "[]"
         return current_subtask, completed_subtasks_str
 
-    def _normalize_model_output(self, raw_text: str) -> str:
-        """移除常见包装噪声，尽量抽取出 Markdown 主体。"""
+    def _extract_json_object(self, raw_text: str) -> str:
+        """移除包装噪声并尽量提取出 JSON 对象主体。"""
         text = raw_text.replace("\r\n", "\n").replace("\r", "\n").strip()
-        text = re.sub(r"```(?:markdown|md|text)?\s*", "", text)
+        text = re.sub(r"```(?:json|markdown|md|text)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(
-            r"\[ANNOTATION_THINK_START\].*?\[ANNOTATION_THINK_END\]",
-            "",
-            text,
-            flags=re.DOTALL,
-        ).strip()
-
-        start_idx = text.find("**Reasoning Process")
-        if start_idx != -1:
-            text = text[start_idx:].strip()
-
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            text = text[start_idx:end_idx + 1]
         return text
 
-    def _validate_and_format_response(
+    def _parse_structured_response(
         self,
         raw_text: str,
         frame_data: dict[str, Any],
+        current_subtask: str,
         next_action: str,
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[Optional[StructuredTeacherTrace], Optional[str]]:
         """
-        校验模型输出是否满足约束，并重建为规范化 Markdown。
+        解析并校验模型返回的结构化 JSON。
 
         Returns:
-            (formatted_response, error_reason)
+            (structured_trace, error_reason)
         """
-        text = self._normalize_model_output(raw_text)
+        text = self._extract_json_object(raw_text)
         if not text:
             return None, "empty response"
 
-        match = RESPONSE_PATTERN.match(text)
-        if not match:
-            return None, "markdown structure mismatch"
+        objects = frame_data.get("objects", [])
+        context: dict[str, Any] = {
+            "current_subtask": current_subtask,
+            "next_action": next_action,
+            "action_mentions": self._action_mentions(next_action),
+            "target_visible": bool(objects),
+        }
+        if objects:
+            obj = objects[0]
+            context["target_name"] = obj["label"]
+            context["bbox_str"] = str(self.normalize_bbox(obj["bbox"]))
 
-        step1 = self._collapse_whitespace(match.group("step1"))
-        step2 = self._collapse_whitespace(match.group("step2"))
-        step3 = self._collapse_whitespace(match.group("step3"))
-        step4 = self._collapse_whitespace(match.group("step4"))
-        action = self._normalize_action_token(match.group("action"))
+        try:
+            structured_trace = StructuredTeacherTrace.model_validate_json(
+                text,
+                context=context,
+            )
+        except ValidationError as exc:
+            first_error = exc.errors(include_url=False)[0]
+            return None, f"{first_error['loc']}: {first_error['msg']}"
+        except json.JSONDecodeError as exc:
+            return None, f"invalid json: {exc.msg}"
 
-        if not all([step1, step2, step3, step4]):
-            return None, "empty reasoning step"
+        return structured_trace, None
 
-        if action is None:
-            return None, "invalid action token"
-
-        if action != next_action:
-            return None, f"action mismatch: {action} != {next_action}"
-
-        steps = [step1, step2, step3, step4]
-        if any(len(step) > MAX_STEP_CHARS for step in steps):
-            return None, "step too long"
-
-        if sum(len(step) for step in steps) > MAX_TOTAL_CHARS:
-            return None, "response too long"
-
+    @staticmethod
+    def _render_structured_response(
+        structured_trace: StructuredTeacherTrace,
+        frame_data: dict[str, Any],
+        next_action: str,
+    ) -> str:
+        """将通过校验的结构化教师输出渲染为最终 Markdown 模板。"""
         objects = frame_data.get("objects", [])
         if objects:
             obj = objects[0]
             target_name = obj["label"]
-            bbox_norm = str(self.normalize_bbox(obj["bbox"]))
-            if target_name.lower() not in step2.lower():
-                return None, "target name missing in step 2"
-            if bbox_norm not in step2:
-                return None, "bbox missing in step 2"
+            bbox = VLNDataSynthesizer.normalize_bbox(obj["bbox"])
+            step2 = (
+                f"I see the '{target_name}' and it is located at the exact bounding box {bbox}. "
+                f"{structured_trace.step2_spatial_perception}"
+            )
         else:
-            if "not visible" not in step2.lower():
-                return None, "step 2 must mention target is not visible"
+            step2 = structured_trace.step2_spatial_perception
 
-        if not any(mention in step3.lower() for mention in self._action_mentions(next_action)):
-            return None, "step 3 does not mention the next action"
-
-        formatted_response = (
+        return (
             "**Reasoning Process:**\n"
-            f"Step 1: Task Progress. {step1}\n"
+            f"Step 1: Task Progress. {structured_trace.step1_task_progress}\n"
             f"Step 2: Spatial Perception. {step2}\n"
-            f"Step 3: Decision Logic. {step3}\n"
-            f"Step 4: Memory Update. {step4}\n\n"
+            f"Step 3: Decision Logic. {structured_trace.step3_decision_logic}\n"
+            f"Step 4: Memory Update. {structured_trace.step4_memory_update}\n\n"
             "**Final Action:**\n"
             f"{next_action}"
         )
-        return formatted_response, None
 
     def _build_template_response(
         self,
@@ -633,6 +696,12 @@ class VLNDataSynthesizer:
         else:
             user_content = [{"type": "text", "text": prompt}]
 
+        current_subtask, _ = self._build_current_task_state(
+            frame_data=frame_data,
+            global_instruction=global_instruction,
+            global_subtasks=global_subtasks,
+            completed_index=completed_index,
+        )
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -649,25 +718,36 @@ class VLNDataSynthesizer:
                     "有" if image_b64 else "无",
                 )
 
+                request_kwargs: dict[str, Any] = {
+                    "model": self._model_name,
+                    "messages": messages,
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "max_tokens": 1200,
+                    "extra_body": {"repetition_penalty": 1.01},
+                }
+                if self._use_json_object_response_format:
+                    request_kwargs["response_format"] = {"type": "json_object"}
+
                 response = self._client.chat.completions.create(
-                    model=self._model_name,
-                    messages=messages,
-                    temperature=0.1,
-                    top_p=0.9,
-                    max_tokens=512,
-                    extra_body={"repetition_penalty": 1.02},
+                    **request_kwargs,
                 )
 
                 msg = response.choices[0].message
                 raw_text = msg.content or ""
 
-                formatted_response, format_error = self._validate_and_format_response(
+                structured_trace, format_error = self._parse_structured_response(
                     raw_text=raw_text,
                     frame_data=frame_data,
+                    current_subtask=current_subtask,
                     next_action=next_action,
                 )
-                if formatted_response is not None:
-                    return formatted_response
+                if structured_trace is not None:
+                    return self._render_structured_response(
+                        structured_trace,
+                        frame_data,
+                        next_action,
+                    )
 
                 saw_invalid_response = True
                 logger.warning(
@@ -675,10 +755,47 @@ class VLNDataSynthesizer:
                     attempt,
                     self.max_retries,
                     format_error,
-                    self._normalize_model_output(raw_text)[:200],
+                    self._extract_json_object(raw_text)[:200],
                 )
+                if format_error == "empty response" and self._use_json_object_response_format:
+                    logger.warning(
+                        "response_format=json_object 在当前多模态请求上返回空内容，后续改用纯提示词 JSON 模式。"
+                    )
+                    self._use_json_object_response_format = False
                 if attempt < self.max_retries:
+                    assistant_feedback = raw_text if raw_text.strip() else "{}"
+                    messages = messages + [
+                        {"role": "assistant", "content": assistant_feedback[:4000]},
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous JSON failed validation. "
+                                f"Validation error: {format_error}. "
+                                "Return one corrected compact JSON object with exactly these keys: "
+                                "step1_task_progress, step2_spatial_perception, "
+                                "step3_decision_logic, step4_memory_update. "
+                                "Do not include any extra keys. "
+                                "Do not repeat prompt instructions or placeholder text. "
+                                f"Step 3 must clearly justify the action '{next_action}'."
+                            ),
+                        },
+                    ]
                     time.sleep(1)
+
+            except openai.BadRequestError as exc:
+                error_text = str(exc)
+                if self._use_json_object_response_format and "response_format" in error_text:
+                    logger.warning(
+                        "服务端似乎不支持 response_format=json_object，后续退化为纯提示词 JSON 模式。"
+                    )
+                    self._use_json_object_response_format = False
+                    continue
+                wait = 2 ** attempt
+                logger.warning("VLM 请求参数异常 (attempt %d/%d): %s — %ds 后重试", attempt, self.max_retries, exc, wait)
+                if attempt < self.max_retries:
+                    time.sleep(wait)
+                    continue
+                break
 
             except openai.APIConnectionError as exc:
                 wait = 2 ** attempt
@@ -696,15 +813,17 @@ class VLNDataSynthesizer:
                     break
 
         if saw_invalid_response:
-            logger.warning("多次生成后仍不合格，改用模板兜底以保证输出格式稳定。")
-            return self._build_template_response(
-                frame_data=frame_data,
-                script_memory=script_memory,
-                global_instruction=global_instruction,
-                global_subtasks=global_subtasks,
-                completed_index=completed_index,
-                next_action=next_action,
-            )
+            if self.invalid_frame_policy == "template":
+                logger.warning("多次生成后仍不合格，按策略改用模板兜底。")
+                return self._build_template_response(
+                    frame_data=frame_data,
+                    script_memory=script_memory,
+                    global_instruction=global_instruction,
+                    global_subtasks=global_subtasks,
+                    completed_index=completed_index,
+                    next_action=next_action,
+                )
+            logger.warning("多次生成后仍不合格，按策略跳过该帧，不写入伪造思维链。")
 
         return None
 
@@ -933,6 +1052,12 @@ def parse_args() -> argparse.Namespace:
         help="VLM API 最大重试次数",
     )
     parser.add_argument(
+        "--invalid-frame-policy",
+        choices=("skip", "template"),
+        default="skip",
+        help="当模型多次返回不合格结果时的处理策略：skip=跳过该帧，template=使用脚本模板兜底",
+    )
+    parser.add_argument(
         "--episode-ids",
         type=int,
         nargs="+",
@@ -949,6 +1074,7 @@ def main() -> None:
         max_retries=args.max_retries,
         api_base_url=args.api_base_url,
         model_name=args.model,
+        invalid_frame_policy=args.invalid_frame_policy,
     )
     synthesizer.run(
         input_json=args.input,
