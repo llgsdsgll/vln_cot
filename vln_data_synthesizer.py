@@ -46,7 +46,7 @@ You are an expert embodied AI data synthesis specialist. Your task is to generat
 This generated text will be used to fine-tune a smaller VLM. Therefore, your output MUST adhere strictly to the following rules:
 1. Absolute Data Loyalty: You must completely rely on the provided ground-truth data (history, spatial coordinates, next action). Never hallucinate objects or reasons that contradict the ground truth.
 2. Bottom-Up Reasoning: Your logic must flow naturally: Deconstruct Task -> Perceive Environment -> Analyze Spatial Relationship -> Decide Action -> Update Memory.
-3. Coordinate Format: You must strictly use the bounding box format `<box>[x_min, y_min, x_max, y_max]</box>` with values normalized to the [0, 1000] range. `[500, 500]` represents the center of the image.
+3. Coordinate Format: You must strictly use the bounding box format [BBOX_START][x_min, y_min, x_max, y_max][BBOX_END] with values normalized to the [0, 1000] range. [500, 500] represents the center of the image.
 
 [Current Ground-Truth State (For your reference only, integrate this into your natural language output)]:
 - Global Instruction: "{global_instruction}"
@@ -54,31 +54,31 @@ This generated text will be used to fine-tune a smaller VLM. Therefore, your out
 - Current Completed Sub-task Index: {completed_index}
 - Historical Trajectory Memory: "{script_memory}"
 - Target Landmark/Object in Current Frame: {target_object_name}
-- Ground-Truth Target BBox (Normalized 0-1000): <box>{bbox_norm}</box>
-- Ground-Truth Next Action: <action>{next_action}</action>
+- Ground-Truth Target BBox (Normalized 0-1000): [BBOX_START]{bbox_norm}[BBOX_END]
+- Ground-Truth Next Action: [GT_ACTION]{next_action}[/GT_ACTION]
 
 [Visual Input]:
 <Image>
 
-Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact XML structure below:
+Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact structure below:
 
-<Think>
+[ANNOTATION_THINK_START]
 [Task Decomposition & Progress (Read History)]:
 According to the global instruction, the overall task consists of the following phases: {global_subtasks_list}. Reviewing my historical memory: "{script_memory}", I can confirm that I have completed step {completed_index}. Therefore, my current core objective is to execute the next logical phase.
 
 [Current Environment & Spatial Perception]:
-To fulfill the current objective, I am scanning my current visual field. In the current observation, I have successfully identified the key target: {target_object_name}. Its exact spatial bounding box is <box>{bbox_norm}</box>. (Describe its relative position based on the coordinates, e.g., "It is located in the lower-right area of my view, taking up a significant portion of the screen.")
+To fulfill the current objective, I am scanning my current visual field. In the current observation, I have successfully identified the key target: {target_object_name}. Its exact spatial bounding box is [BBOX_START]{bbox_norm}[BBOX_END]. (Describe its relative position based on the coordinates, e.g., "It is located in the lower-right area of my view, taking up a significant portion of the screen.")
 
 [Decision Reasoning Logic]:
-Based on the target's position and my current orientation, (Explain why the next action is necessary using the numerical coordinates. e.g., "Since the target's center is shifted to the left (x_min and x_max < 500), I need to turn left to align with it..."). Therefore, taking the specific action is the most logical choice to proceed.
+Based on the target's position and my current orientation, (Explicitly state the actual numerical coordinates you observed and explain the spatial relationship. For example: "Since the target's horizontal coordinates are between 545 and 998, which occupies the right side of my view, I need to turn right to center it..."). Therefore, taking the specific action is the most logical choice to proceed.
 
 [Memory Summary & Update (Update History)]:
 (Briefly summarize the key observation and decision made in this step in ONE concise sentence, serving as a memory anchor for future steps.)
 In this step, I observed the {target_object_name} located at the (describe relative direction), and I decided to execute {next_action} to adjust my navigation path.
-</Think>
-<Action>
+[ANNOTATION_THINK_END]
+[ACTION_DECISION_START]
 {next_action}
-</Action>\
+[ACTION_DECISION_END]\
 """
 
 # 目标物体不可见时使用（无 objects 标注帧）
@@ -96,14 +96,14 @@ This generated text will be used to fine-tune a smaller VLM. Therefore, your out
 - Current Completed Sub-task Index: {completed_index}
 - Historical Trajectory Memory: "{script_memory}"
 - Target Landmark/Object: (Not visible in current frame)
-- Ground-Truth Next Action: <action>{next_action}</action>
+- Ground-Truth Next Action: [GT_ACTION]{next_action}[/GT_ACTION]
 
 [Visual Input]:
 <Image>
 
-Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact XML structure below:
+Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact structure below:
 
-<Think>
+[ANNOTATION_THINK_START]
 [Task Decomposition & Progress (Read History)]:
 According to the global instruction, the overall task consists of the following phases: {global_subtasks_list}. Reviewing my historical memory: "{script_memory}", I can confirm that I have completed step {completed_index}. Therefore, my current core objective is to execute the next logical phase.
 
@@ -116,10 +116,10 @@ Since the target is not yet visible, I must continue navigating based on the cur
 [Memory Summary & Update (Update History)]:
 (Briefly summarize the key observation and decision made in this step in ONE concise sentence, serving as a memory anchor for future steps.)
 In this step, the target was not visible; I decided to execute {next_action} to continue exploring the environment.
-</Think>
-<Action>
+[ANNOTATION_THINK_END]
+[ACTION_DECISION_START]
 {next_action}
-</Action>\
+[ACTION_DECISION_END]\
 """
 
 # 动作编码映射
@@ -325,19 +325,6 @@ class VLNDataSynthesizer:
             cap.release()
 
     def call_vlm_api(self, prompt: str, image_b64: Optional[str]) -> Optional[str]:
-        """
-        调用本地 Qwen VLM 服务（OpenAI 兼容接口）生成 CoT 推理文本。
-
-        接口格式遵循 OpenAI Chat Completions API，由 vLLM 提供兼容层。
-        图像以 base64 data URL 方式内嵌到 user message 的 image_url content 块中。
-
-        Args:
-            prompt:     填充好的文本 prompt。
-            image_b64:  base64 编码的 JPEG 图像字符串；为 ``None`` 时仅传文本。
-
-        Returns:
-            模型生成的文本（CoT + Action）；所有重试失败后返回 ``None``。
-        """
         # 构建 user message content：图像（若有）+ 文本
         user_content: list[dict[str, Any]]
         if image_b64 is not None:
@@ -362,154 +349,100 @@ class VLNDataSynthesizer:
                     self._model_name,
                     "有" if image_b64 else "无",
                 )
+                
+                # 首先尝试：开启思考模式 (Teacher Mode)
                 response = self._client.chat.completions.create(
                     model=self._model_name,
                     messages=messages,
-                    temperature=0.1,    # 低温度确保输出稳定可复现
-                    max_tokens=2048,
+                    temperature=0.1,  # 保持低温，保证格式稳定
+                    max_tokens=4096,
+                    extra_body={
+                        "chat_template_kwargs": {"enable_thinking": True}
+                    },
                 )
-                content = response.choices[0].message.content
-                if not content:
-                    raise ValueError("模型返回空内容")
-                return content
+                
+                msg = response.choices[0].message
+                reasoning = getattr(msg, "reasoning_content", None) or ""
+                answer = msg.content or ""
+                raw_text = reasoning + answer
+                
+                # 如果思考模式返回为空，触发柔性降级 (Fallback)
+                if not raw_text.strip():
+                    logger.warning("思考模式返回为空！打印原始响应以便排查: %s", response.model_dump_json())
+                    logger.warning("尝试降级为【非思考模式】重试本帧...")
+                    
+                    fallback_response = self._client.chat.completions.create(
+                        model=self._model_name,
+                        messages=messages,
+                        temperature=0.2,  # 稍微放宽一点点温度，给模型一点灵活性
+                        frequency_penalty=0.5, # 【新增参数】强力打破重复循环
+                        max_tokens=4096,
+                        # 去掉 extra_body，关闭原生思考
+                    )
+                    
+                    msg_fallback = fallback_response.choices[0].message
+                    raw_text = msg_fallback.content or ""
+                    
+                    if not raw_text.strip():
+                        raise ValueError("降级模式依然返回空内容，可能是输入图像/文本触发了拒答。")
+                
+                return raw_text
 
             except openai.APIConnectionError as exc:
-                # 连接失败（隧道断开、服务未启动）
                 wait = 2 ** attempt
-                logger.warning(
-                    "VLM 连接失败 (attempt %d/%d): %s — %ds 后重试",
-                    attempt, self.max_retries, exc, wait,
-                )
-                if attempt < self.max_retries:
-                    time.sleep(wait)
-                else:
-                    logger.error("VLM 连接重试耗尽，跳过本帧。错误: %s", exc)
-                    return None
-
-            except openai.RateLimitError as exc:
-                # 触发限流，等待更长时间
-                wait = 2 ** attempt * 5
-                logger.warning(
-                    "VLM 限流 (attempt %d/%d) — %ds 后重试: %s",
-                    attempt, self.max_retries, wait, exc,
-                )
-                if attempt < self.max_retries:
-                    time.sleep(wait)
-                else:
-                    logger.error("VLM 限流重试耗尽，跳过本帧。错误: %s", exc)
-                    return None
-
-            except openai.APIStatusError as exc:
-                # HTTP 4xx/5xx 错误
-                wait = 2 ** attempt
-                logger.warning(
-                    "VLM API 状态错误 (attempt %d/%d) HTTP %s: %s — %ds 后重试",
-                    attempt, self.max_retries, exc.status_code, exc.message, wait,
-                )
-                if attempt < self.max_retries:
-                    time.sleep(wait)
-                else:
-                    logger.error("VLM API 错误重试耗尽，跳过本帧。错误: %s", exc)
-                    return None
+                logger.warning("VLM 连接失败 (attempt %d/%d): %s — %ds 后重试", attempt, self.max_retries, exc, wait)
+                if attempt < self.max_retries: time.sleep(wait)
+                else: return None
 
             except Exception as exc:  # noqa: BLE001
-                # 其他未预期异常（JSON 解析失败、空内容等）
                 wait = 2 ** attempt
-                logger.warning(
-                    "VLM 未知异常 (attempt %d/%d): %s — %ds 后重试",
-                    attempt, self.max_retries, exc, wait,
-                )
-                if attempt < self.max_retries:
-                    time.sleep(wait)
-                else:
-                    logger.error("VLM 重试耗尽，跳过本帧。错误: %s", exc)
-                    return None
+                logger.warning("VLM 未知异常 (attempt %d/%d): %s — %ds 后重试", attempt, self.max_retries, exc, wait)
+                if attempt < self.max_retries: time.sleep(wait)
+                else: return None
 
-        return None  # 不可达，但满足类型检查
+        return None
 
+# 增加 out_f 参数，返回值改为成功写入的记录数
     def process_trajectory(
         self,
         episode_data: dict[str, Any],
         gt_actions: list[int],
         video_dir: str,
-    ) -> list[dict[str, Any]]:
-        """
-        处理单条轨迹（一个 episode）的所有帧，生成 CoT 标注记录列表。
-
-        Args:
-            episode_data: processed.json 中单个 episode 的字典。
-            gt_actions:   该 episode 来自 train_gt.json 的动作序列（整数列表）。
-            video_dir:    视频文件所在目录。
-
-        Returns:
-            每帧对应一条标注记录的列表（OpenAI/HF 对话格式）。
-        """
+        out_f,  # <--- 新增参数：文件句柄
+    ) -> int:
         episode_id: int = episode_data["episode_id"]
         instruction: str = episode_data["instruction"]
         frames: list[dict[str, Any]] = episode_data["frames"]
 
-        # 按首次出现顺序收集去重的子任务列表
         global_subtasks: list[str] = list(
-            dict.fromkeys(
-                f["subtask"] for f in frames if f.get("subtask") is not None
-            )
+            dict.fromkeys(f["subtask"] for f in frames if f.get("subtask") is not None)
         )
 
         video_path = os.path.join(video_dir, f"ep{episode_id:05d}.mp4")
-        if not os.path.exists(video_path):
-            logger.warning("视频文件不存在: %s，episode %d 将跳过图像输入", video_path, episode_id)
-
         script_memory: list[str] = []
-        records: list[dict[str, Any]] = []
-
-        logger.info(
-            "开始处理 episode %d（%d 帧，%d 个子任务）",
-            episode_id,
-            len(frames),
-            len(global_subtasks),
-        )
+        
+        success_count = 0  # 记录成功条数
 
         for frame_data in frames:
             frame_number: int = frame_data["frame"]
             subtask: Optional[str] = frame_data.get("subtask")
 
-            # 跳过缺少 subtask 标注的帧
-            if subtask is None:
-                logger.warning(
-                    "episode %d frame %d 缺少 subtask 标注，跳过", episode_id, frame_number
-                )
-                continue
-
-            # 获取真值动作（列表为 1-indexed，对应 frame_number）
+            if subtask is None: continue
             action_idx = frame_number - 1
-            if action_idx >= len(gt_actions):
-                logger.warning(
-                    "episode %d frame %d 超出 gt_actions 范围（长度 %d），跳过",
-                    episode_id,
-                    frame_number,
-                    len(gt_actions),
-                )
-                continue
+            if action_idx >= len(gt_actions): continue
 
             action_code: int = gt_actions[action_idx]
             next_action: str = ACTION_MAP.get(action_code, f"UNKNOWN_{action_code}")
 
-            # 当前子任务在全局列表中的索引（之前的均已完成）
             try:
                 completed_index = global_subtasks.index(subtask)
             except ValueError:
                 completed_index = 0
 
-            # 提取视频帧
             image_b64: Optional[str] = None
             if os.path.exists(video_path):
                 image_b64 = self.extract_frame(video_path, frame_number)
-                if image_b64 is None:
-                    logger.warning(
-                        "episode %d frame %d 图像提取失败", episode_id, frame_number
-                    )
 
-            # 构建 prompt
             prompt = self.build_prompt(
                 frame_data=frame_data,
                 script_memory=script_memory,
@@ -519,24 +452,18 @@ class VLNDataSynthesizer:
                 next_action=next_action,
             )
 
-            # 调用 VLM API
+            # 调用大模型 (建议结合上一轮我给你的 Fallback 降级逻辑)
             vlm_response = self.call_vlm_api(prompt, image_b64)
+            
             if vlm_response is None:
-                logger.error(
-                    "episode %d frame %d VLM 调用失败，跳过", episode_id, frame_number
-                )
-                # 即使 API 失败也更新记忆，保证历史真值不断链
+                logger.error("episode %d frame %d VLM 调用失败，跳过", episode_id, frame_number)
                 self.update_script_memory(script_memory, frame_number, next_action)
                 continue
 
-            # 构建用户侧 content（含图像 + 文本）
             user_content: list[dict[str, Any]]
             if image_b64 is not None:
                 user_content = [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
-                    },
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
                     {"type": "text", "text": prompt},
                 ]
             else:
@@ -550,18 +477,16 @@ class VLNDataSynthesizer:
                     {"role": "assistant", "content": vlm_response},
                 ],
             }
-            records.append(record)
+            
+            # 【关键修改】：立刻写入文件并刷新缓冲区
+            out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            out_f.flush()
+            success_count += 1
+            logger.info("  => 成功写入 Episode %d Frame %d", episode_id, frame_number)
 
-            # 更新真值历史记忆（必须在记录写入后进行，避免当前步污染自身 prompt）
             self.update_script_memory(script_memory, frame_number, next_action)
 
-        logger.info(
-            "episode %d 处理完成，生成 %d 条记录（跳过 %d 帧）",
-            episode_id,
-            len(records),
-            len(frames) - len(records),
-        )
-        return records
+        return success_count
 
     def run(
         self,
@@ -613,13 +538,9 @@ class VLNDataSynthesizer:
                     "[%d/%d] 处理 episode %d ...", ep_idx, len(episodes), episode_id
                 )
 
-                records = self.process_trajectory(episode, gt_actions, video_dir)
-
-                for record in records:
-                    out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
-                out_f.flush()
-
-                total_records += len(records)
+                # 将 out_f 传给 process_trajectory，并获取成功条数
+                records_count = self.process_trajectory(episode, gt_actions, video_dir, out_f)
+                total_records += records_count
 
         logger.info(
             "全部处理完成！共生成 %d 条 CoT 记录，输出文件: %s",
