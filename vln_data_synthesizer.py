@@ -4,7 +4,7 @@ VLN CoT 数据合成脚本
 
 功能：
   读取人工标注后的 processed.json（含 subtask/object/bbox）和 train_gt.json（含真值动作序列），
-  结合视频帧，调用 VLM API（mock 占位）生成 Chain-of-Thought 推理文本，
+  结合视频帧，调用本地部署的 Qwen VLM（OpenAI 兼容接口）生成 Chain-of-Thought 推理文本，
   输出为 OpenAI/HuggingFace 标准的对话微调格式（JSONL）。
 
 使用方法：
@@ -15,8 +15,13 @@ VLN CoT 数据合成脚本
       --output  output_cot.jsonl
 
   可选参数：
+      --api-base-url  本地 VLM 服务地址（默认 http://localhost:8000/v1）
+      --model         模型名称，与服务端部署名一致（默认 Qwen/Qwen2.5-VL-72B-Instruct）
       --max-retries   VLM API 最大重试次数（默认 3）
       --episode-ids   只处理指定 episode（如 --episode-ids 1 6 7）
+
+本地服务映射命令（参考）：
+  ssh -fN -L 8000:localhost:8000 root@139.196.171.150 -p 6222
 """
 
 import argparse
@@ -28,6 +33,7 @@ import time
 from typing import Any, Optional
 
 import cv2
+import openai
 
 # ---------------------------------------------------------------------------
 # Prompt 模板 —— 抽离为全局变量，方便随时修改
@@ -150,14 +156,33 @@ class VLNDataSynthesizer:
       3. 将结果保存为 JSONL 格式，供后续微调使用。
     """
 
-    def __init__(self, max_retries: int = 3) -> None:
+    def __init__(
+        self,
+        max_retries: int = 3,
+        api_base_url: str = "http://localhost:8000/v1",
+        model_name: str = "/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8",
+    ) -> None:
         """
         初始化合成器。
 
         Args:
-            max_retries: VLM API 调用失败时的最大重试次数。
+            max_retries:   VLM API 调用失败时的最大重试次数。
+            api_base_url:  本地 VLM 服务的 OpenAI 兼容接口地址。
+                           默认指向 SSH 隧道映射的 8000 端口。
+            model_name:    服务端部署的模型名称，需与 vLLM --served-model-name 一致。
+                           可通过 GET /v1/models 确认实际名称。
         """
         self.max_retries = max_retries
+        self._client = openai.OpenAI(
+            api_key="EMPTY",        # vLLM 本地服务不校验 API key，填任意非空字符串
+            base_url=api_base_url,
+        )
+        self._model_name = model_name
+        logger.info(
+            "VLM 客户端初始化完成 | base_url=%s | model=%s",
+            api_base_url,
+            model_name,
+        )
 
     # ------------------------------------------------------------------
     # 静态/工具方法
@@ -301,55 +326,103 @@ class VLNDataSynthesizer:
 
     def call_vlm_api(self, prompt: str, image_b64: Optional[str]) -> Optional[str]:
         """
-        调用 VLM API 生成 CoT 推理文本（当前为 mock 实现）。
+        调用本地 Qwen VLM 服务（OpenAI 兼容接口）生成 CoT 推理文本。
 
-        包含完整的 retry 逻辑（指数退避）和错误处理。
-        替换此函数体即可接入真实的 Qwen-VL 或其他 VLM API。
+        接口格式遵循 OpenAI Chat Completions API，由 vLLM 提供兼容层。
+        图像以 base64 data URL 方式内嵌到 user message 的 image_url content 块中。
 
         Args:
             prompt:     填充好的文本 prompt。
-            image_b64:  base64 编码的图像字符串；为 ``None`` 时跳过图像输入。
+            image_b64:  base64 编码的 JPEG 图像字符串；为 ``None`` 时仅传文本。
 
         Returns:
             模型生成的文本（CoT + Action）；所有重试失败后返回 ``None``。
         """
+        # 构建 user message content：图像（若有）+ 文本
+        user_content: list[dict[str, Any]]
+        if image_b64 is not None:
+            user_content = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                },
+                {"type": "text", "text": prompt},
+            ]
+        else:
+            user_content = [{"type": "text", "text": prompt}]
+
+        messages = [{"role": "user", "content": user_content}]
+
         for attempt in range(1, self.max_retries + 1):
             try:
-                # ----------------------------------------------------------------
-                # TODO: 替换以下 mock 逻辑为真实 API 调用，例如：
-                #
-                #   import openai
-                #   client = openai.OpenAI(api_key=..., base_url=...)
-                #   messages = [{"role": "user", "content": [...]}]
-                #   response = client.chat.completions.create(
-                #       model="qwen-vl-max",
-                #       messages=messages,
-                #   )
-                #   return response.choices[0].message.content
-                # ----------------------------------------------------------------
-                logger.debug("VLM API mock 调用 (attempt %d/%d)", attempt, self.max_retries)
-                mock_response = (
-                    "<Think>\n"
-                    "[Task Decomposition & Progress (Read History)]:\n"
-                    "Mock CoT response — replace call_vlm_api() with real API.\n"
-                    "</Think>\n"
-                    "<Action>\nMOCK_ACTION\n</Action>"
-                )
-                return mock_response
-
-            except Exception as exc:  # noqa: BLE001
-                wait = 2 ** attempt
-                logger.warning(
-                    "VLM API 调用失败 (attempt %d/%d): %s — 等待 %ds 后重试",
+                logger.debug(
+                    "调用 VLM API (attempt %d/%d) model=%s image=%s",
                     attempt,
                     self.max_retries,
-                    exc,
-                    wait,
+                    self._model_name,
+                    "有" if image_b64 else "无",
+                )
+                response = self._client.chat.completions.create(
+                    model=self._model_name,
+                    messages=messages,
+                    temperature=0.1,    # 低温度确保输出稳定可复现
+                    max_tokens=2048,
+                )
+                content = response.choices[0].message.content
+                if not content:
+                    raise ValueError("模型返回空内容")
+                return content
+
+            except openai.APIConnectionError as exc:
+                # 连接失败（隧道断开、服务未启动）
+                wait = 2 ** attempt
+                logger.warning(
+                    "VLM 连接失败 (attempt %d/%d): %s — %ds 后重试",
+                    attempt, self.max_retries, exc, wait,
                 )
                 if attempt < self.max_retries:
                     time.sleep(wait)
                 else:
-                    logger.error("VLM API 重试耗尽，跳过本帧。错误: %s", exc)
+                    logger.error("VLM 连接重试耗尽，跳过本帧。错误: %s", exc)
+                    return None
+
+            except openai.RateLimitError as exc:
+                # 触发限流，等待更长时间
+                wait = 2 ** attempt * 5
+                logger.warning(
+                    "VLM 限流 (attempt %d/%d) — %ds 后重试: %s",
+                    attempt, self.max_retries, wait, exc,
+                )
+                if attempt < self.max_retries:
+                    time.sleep(wait)
+                else:
+                    logger.error("VLM 限流重试耗尽，跳过本帧。错误: %s", exc)
+                    return None
+
+            except openai.APIStatusError as exc:
+                # HTTP 4xx/5xx 错误
+                wait = 2 ** attempt
+                logger.warning(
+                    "VLM API 状态错误 (attempt %d/%d) HTTP %s: %s — %ds 后重试",
+                    attempt, self.max_retries, exc.status_code, exc.message, wait,
+                )
+                if attempt < self.max_retries:
+                    time.sleep(wait)
+                else:
+                    logger.error("VLM API 错误重试耗尽，跳过本帧。错误: %s", exc)
+                    return None
+
+            except Exception as exc:  # noqa: BLE001
+                # 其他未预期异常（JSON 解析失败、空内容等）
+                wait = 2 ** attempt
+                logger.warning(
+                    "VLM 未知异常 (attempt %d/%d): %s — %ds 后重试",
+                    attempt, self.max_retries, exc, wait,
+                )
+                if attempt < self.max_retries:
+                    time.sleep(wait)
+                else:
+                    logger.error("VLM 重试耗尽，跳过本帧。错误: %s", exc)
                     return None
 
         return None  # 不可达，但满足类型检查
@@ -585,6 +658,17 @@ def parse_args() -> argparse.Namespace:
         help="输出 JSONL 文件路径",
     )
     parser.add_argument(
+        "--api-base-url",
+        default="http://localhost:8000/v1",
+        help="本地 VLM 服务的 OpenAI 兼容接口地址（SSH 隧道映射后的地址）",
+    )
+    parser.add_argument(
+        "--model",
+        default="/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8",
+        help="服务端部署的模型名称，需与 vLLM --served-model-name 一致；"
+             "可通过 curl http://localhost:8000/v1/models 确认",
+    )
+    parser.add_argument(
         "--max-retries",
         type=int,
         default=3,
@@ -603,7 +687,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """脚本主函数。"""
     args = parse_args()
-    synthesizer = VLNDataSynthesizer(max_retries=args.max_retries)
+    synthesizer = VLNDataSynthesizer(
+        max_retries=args.max_retries,
+        api_base_url=args.api_base_url,
+        model_name=args.model,
+    )
     synthesizer.run(
         input_json=args.input,
         gt_json=args.gt,
