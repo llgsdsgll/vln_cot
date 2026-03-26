@@ -16,7 +16,7 @@ VLN CoT 数据合成脚本
 
   可选参数：
       --api-base-url  本地 VLM 服务地址（默认 http://localhost:8000/v1）
-      --model         模型名称，与服务端部署名一致（默认 Qwen/Qwen2.5-VL-72B-Instruct）
+      --model         模型名称，与服务端部署名一致（默认 /mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8）
       --max-retries   VLM API 最大重试次数（默认 3）
       --episode-ids   只处理指定 episode（如 --episode-ids 1 6 7）
 
