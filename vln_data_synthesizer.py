@@ -35,91 +35,67 @@ from typing import Any, Optional
 import cv2
 import openai
 
+import re
+
 # ---------------------------------------------------------------------------
 # Prompt 模板 —— 抽离为全局变量，方便随时修改
 # ---------------------------------------------------------------------------
 
 # 有目标物体可见时使用
 PROMPT_TEMPLATE = """\
-You are an expert embodied AI data synthesis specialist. Your task is to generate a rigorous "Chain-of-Thought" (CoT) reasoning text for a Vision-Language Navigation (VLN) agent, based on provided ground-truth data.
+You are an expert embodied AI data synthesis specialist. Your task is to generate a rigorous "Chain-of-Thought" (CoT) reasoning text for a Vision-Language Navigation (VLN) agent.
 
-This generated text will be used to fine-tune a smaller VLM. Therefore, your output MUST adhere strictly to the following rules:
-1. Absolute Data Loyalty: You must completely rely on the provided ground-truth data (history, spatial coordinates, next action). Never hallucinate objects or reasons that contradict the ground truth.
-2. Bottom-Up Reasoning: Your logic must flow naturally: Deconstruct Task -> Perceive Environment -> Analyze Spatial Relationship -> Decide Action -> Update Memory.
-3. Coordinate Format: You must strictly use the bounding box format [BBOX_START][x_min, y_min, x_max, y_max][BBOX_END] with values normalized to the [0, 1000] range. [500, 500] represents the center of the image.
-
-[Current Ground-Truth State (For your reference only, integrate this into your natural language output)]:
+[Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
 - Pre-defined Sub-tasks: {global_subtasks_list}
 - Current Completed Sub-task Index: {completed_index}
 - Historical Trajectory Memory: "{script_memory}"
 - Target Landmark/Object in Current Frame: {target_object_name}
-- Ground-Truth Target BBox (Normalized 0-1000): [BBOX_START]{bbox_norm}[BBOX_END]
-- Ground-Truth Next Action: [GT_ACTION]{next_action}[/GT_ACTION]
+- Ground-Truth Target BBox (Normalized 0-1000): {bbox_norm}
+- Ground-Truth Next Action: {next_action}
 
 [Visual Input]:
 <Image>
 
-Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact structure below:
+[Task Requirements]:
+Based on the image and the ground-truth state, generate the reasoning text strictly following the Markdown format below. Do NOT output any other conversational text.
 
-[ANNOTATION_THINK_START]
-[Task Decomposition & Progress (Read History)]:
-According to the global instruction, the overall task consists of the following phases: {global_subtasks_list}. Reviewing my historical memory: "{script_memory}", I can confirm that I have completed step {completed_index}. Therefore, my current core objective is to execute the next logical phase.
+**Reasoning Process:**
+Step 1: Task Progress. Briefly state what has been completed based on the memory and what the current sub-task is.
+Step 2: Spatial Perception. Explicitly state that you see the '{target_object_name}' and it is located at the exact bounding box {bbox_norm}. Describe its relative screen position.
+Step 3: Decision Logic. Explain exactly why the action '{next_action}' must be taken to approach or interact with the target.
+Step 4: Memory Update. Provide a one-sentence summary of this step's observation and decision.
 
-[Current Environment & Spatial Perception]:
-To fulfill the current objective, I am scanning my current visual field. In the current observation, I have successfully identified the key target: {target_object_name}. Its exact spatial bounding box is [BBOX_START]{bbox_norm}[BBOX_END]. (Describe its relative position based on the coordinates, e.g., "It is located in the lower-right area of my view, taking up a significant portion of the screen.")
-
-[Decision Reasoning Logic]:
-Based on the target's position and my current orientation, (Explicitly state the actual numerical coordinates you observed and explain the spatial relationship. For example: "Since the target's horizontal coordinates are between 545 and 998, which occupies the right side of my view, I need to turn right to center it..."). Therefore, taking the specific action is the most logical choice to proceed.
-
-[Memory Summary & Update (Update History)]:
-(Briefly summarize the key observation and decision made in this step in ONE concise sentence, serving as a memory anchor for future steps.)
-In this step, I observed the {target_object_name} located at the (describe relative direction), and I decided to execute {next_action} to adjust my navigation path.
-[ANNOTATION_THINK_END]
-[ACTION_DECISION_START]
-{next_action}
-[ACTION_DECISION_END]\
+**Final Action:**
+{next_action}\
 """
 
-# 目标物体不可见时使用（无 objects 标注帧）
+# 目标物体不可见时使用
 PROMPT_TEMPLATE_NO_TARGET = """\
-You are an expert embodied AI data synthesis specialist. Your task is to generate a rigorous "Chain-of-Thought" (CoT) reasoning text for a Vision-Language Navigation (VLN) agent, based on provided ground-truth data.
+You are an expert embodied AI data synthesis specialist. Your task is to generate a rigorous "Chain-of-Thought" (CoT) reasoning text for a Vision-Language Navigation (VLN) agent.
 
-This generated text will be used to fine-tune a smaller VLM. Therefore, your output MUST adhere strictly to the following rules:
-1. Absolute Data Loyalty: You must completely rely on the provided ground-truth data (history, spatial coordinates, next action). Never hallucinate objects or reasons that contradict the ground truth.
-2. Bottom-Up Reasoning: Your logic must flow naturally: Deconstruct Task -> Perceive Environment -> Explore -> Decide Action -> Update Memory.
-3. Since the target object is NOT visible in the current frame, do NOT fabricate any bounding box coordinates.
-
-[Current Ground-Truth State (For your reference only, integrate this into your natural language output)]:
+[Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
 - Pre-defined Sub-tasks: {global_subtasks_list}
 - Current Completed Sub-task Index: {completed_index}
 - Historical Trajectory Memory: "{script_memory}"
 - Target Landmark/Object: (Not visible in current frame)
-- Ground-Truth Next Action: [GT_ACTION]{next_action}[/GT_ACTION]
+- Ground-Truth Next Action: {next_action}
 
 [Visual Input]:
 <Image>
 
-Based on the image and the ground-truth state above, simulate the first-person perspective of the navigation agent and generate the CoT reasoning text using the exact structure below:
+[Task Requirements]:
+Based on the image and the ground-truth state, generate the reasoning text strictly following the Markdown format below. Do NOT output any other conversational text.
 
-[ANNOTATION_THINK_START]
-[Task Decomposition & Progress (Read History)]:
-According to the global instruction, the overall task consists of the following phases: {global_subtasks_list}. Reviewing my historical memory: "{script_memory}", I can confirm that I have completed step {completed_index}. Therefore, my current core objective is to execute the next logical phase.
+**Reasoning Process:**
+Step 1: Task Progress. Briefly state what has been completed based on the memory and what the current sub-task is.
+Step 2: Spatial Perception. State that the target object is currently not visible in the field of view. Do NOT hallucinate any bounding boxes.
+Step 3: Decision Logic. Explain why exploring via the action '{next_action}' is the most reasonable choice.
+Step 4: Memory Update. Provide a one-sentence summary stating the target was unseen and the exploration decision made.
 
-[Current Environment & Spatial Perception]:
-The target object is currently not visible in my view. Based on the layout, I need to explore further to locate the target associated with the current sub-task.
-
-[Decision Reasoning Logic]:
-Since the target is not yet visible, I must continue navigating based on the current trajectory and instruction context. The action {next_action} is the most appropriate step to bring the target into view and make progress toward the goal.
-
-[Memory Summary & Update (Update History)]:
-(Briefly summarize the key observation and decision made in this step in ONE concise sentence, serving as a memory anchor for future steps.)
-In this step, the target was not visible; I decided to execute {next_action} to continue exploring the environment.
-[ANNOTATION_THINK_END]
-[ACTION_DECISION_START]
-{next_action}
-[ACTION_DECISION_END]\
+**Final Action:**
+{next_action}\
 """
 
 # 动作编码映射
@@ -354,18 +330,27 @@ class VLNDataSynthesizer:
                 response = self._client.chat.completions.create(
                     model=self._model_name,
                     messages=messages,
-                    temperature=0.1,  # 保持低温，保证格式稳定
-                    max_tokens=4096,
+                    temperature=0.3,
+                    top_p=0.85,
+                    frequency_penalty=0.3,
+                    presence_penalty=0.0,
+                    max_tokens=2048,
+                    # 输出到结束标记立即停止，防止重复退化
+                    stop=["[ACTION_DECISION_END]"],
                     extra_body={
-                        "chat_template_kwargs": {"enable_thinking": True}
+                        "chat_template_kwargs": {"enable_thinking": True},
+                        # vLLM 原生重复惩罚（比 frequency_penalty 更有效）
+                        "repetition_penalty": 1.05,
                     },
                 )
                 
                 msg = response.choices[0].message
-                reasoning = getattr(msg, "reasoning_content", None) or ""
+                # content = 模型最终答案（</think> 之后），存入训练数据
+                # reasoning_content = Qwen3 内部思考过程，仅用于空值兜底判断，不写入 JSONL
                 answer = msg.content or ""
-                raw_text = reasoning + answer
-                
+                reasoning = getattr(msg, "reasoning_content", None) or ""
+                raw_text = answer if answer.strip() else reasoning
+
                 # 如果思考模式返回为空，触发柔性降级 (Fallback)
                 if not raw_text.strip():
                     logger.warning("思考模式返回为空！打印原始响应以便排查: %s", response.model_dump_json())
@@ -374,10 +359,13 @@ class VLNDataSynthesizer:
                     fallback_response = self._client.chat.completions.create(
                         model=self._model_name,
                         messages=messages,
-                        temperature=0.2,  # 稍微放宽一点点温度，给模型一点灵活性
-                        frequency_penalty=0.5, # 【新增参数】强力打破重复循环
-                        max_tokens=4096,
-                        # 去掉 extra_body，关闭原生思考
+                        temperature=0.5,
+                        top_p=0.85,
+                        frequency_penalty=0.5,
+                        presence_penalty=0.1,
+                        max_tokens=1024,
+                        stop=["[ACTION_DECISION_END]"],
+                        extra_body={"repetition_penalty": 1.1},
                     )
                     
                     msg_fallback = fallback_response.choices[0].message
@@ -402,13 +390,12 @@ class VLNDataSynthesizer:
 
         return None
 
-# 增加 out_f 参数，返回值改为成功写入的记录数
     def process_trajectory(
         self,
         episode_data: dict[str, Any],
         gt_actions: list[int],
         video_dir: str,
-        out_f,  # <--- 新增参数：文件句柄
+        out_f,
     ) -> int:
         episode_id: int = episode_data["episode_id"]
         instruction: str = episode_data["instruction"]
@@ -419,72 +406,126 @@ class VLNDataSynthesizer:
         )
 
         video_path = os.path.join(video_dir, f"ep{episode_id:05d}.mp4")
+        # 帧图像保存目录：与输出 JSONL 同级的 frames/ 子目录
+        frames_dir = os.path.join(
+            os.path.dirname(os.path.abspath(out_f.name)), "frames"
+        )
+        os.makedirs(frames_dir, exist_ok=True)
+
         script_memory: list[str] = []
-        
-        success_count = 0  # 记录成功条数
+        success_count = 0
 
         for frame_data in frames:
             frame_number: int = frame_data["frame"]
             subtask: Optional[str] = frame_data.get("subtask")
 
-            if subtask is None: continue
+            if subtask is None:
+                continue
             action_idx = frame_number - 1
-            if action_idx >= len(gt_actions): continue
+            if action_idx >= len(gt_actions):
+                continue
 
             action_code: int = gt_actions[action_idx]
             next_action: str = ACTION_MAP.get(action_code, f"UNKNOWN_{action_code}")
 
+            # 帧级兜底：任何未预期异常只跳过本帧，不崩溃整个进程
             try:
-                completed_index = global_subtasks.index(subtask)
-            except ValueError:
-                completed_index = 0
+                try:
+                    completed_index = global_subtasks.index(subtask)
+                except ValueError:
+                    completed_index = 0
 
-            image_b64: Optional[str] = None
-            if os.path.exists(video_path):
-                image_b64 = self.extract_frame(video_path, frame_number)
+                # 提取帧：base64 仅用于 API 调用，同时保存 JPEG 文件供 JSONL 引用
+                image_b64: Optional[str] = None
+                image_path: Optional[str] = None
+                if os.path.exists(video_path):
+                    image_b64 = self.extract_frame(video_path, frame_number)
+                    if image_b64 is not None:
+                        fname = f"ep{episode_id:05d}_frame{frame_number:04d}.jpg"
+                        image_path = os.path.join(frames_dir, fname)
+                        with open(image_path, "wb") as img_f:
+                            img_f.write(base64.b64decode(image_b64))
 
-            prompt = self.build_prompt(
-                frame_data=frame_data,
-                script_memory=script_memory,
-                global_instruction=instruction,
-                global_subtasks=global_subtasks,
-                completed_index=completed_index,
-                next_action=next_action,
-            )
+                prompt = self.build_prompt(
+                    frame_data=frame_data,
+                    script_memory=script_memory,
+                    global_instruction=instruction,
+                    global_subtasks=global_subtasks,
+                    completed_index=completed_index,
+                    next_action=next_action,
+                )
 
-            # 调用大模型 (建议结合上一轮我给你的 Fallback 降级逻辑)
-            vlm_response = self.call_vlm_api(prompt, image_b64)
-            
-            if vlm_response is None:
-                logger.error("episode %d frame %d VLM 调用失败，跳过", episode_id, frame_number)
+                vlm_response = self.call_vlm_api(prompt, image_b64)
+
+                if vlm_response is None:
+                    logger.error("episode %d frame %d VLM 调用失败，跳过", episode_id, frame_number)
+                    self.update_script_memory(script_memory, frame_number, next_action)
+                    continue
+
+                # ------------------------------------------------------------------
+                # 提取自定义标记块
+                # stop=["[ACTION_DECISION_END]"] 会截断输出，需在此补回结束标记
+                # ------------------------------------------------------------------
+                raw = vlm_response
+                if "[ACTION_DECISION_START]" in raw and "[ACTION_DECISION_END]" not in raw:
+                    raw = raw + "\n[ACTION_DECISION_END]"
+
+                think_match = re.search(
+                    r'\[ANNOTATION_THINK_START\](.*?)\[ANNOTATION_THINK_END\]',
+                    raw, re.DOTALL,
+                )
+                action_match = re.search(
+                    r'\[ACTION_DECISION_START\](.*?)\[ACTION_DECISION_END\]',
+                    raw, re.DOTALL,
+                )
+
+                if think_match and action_match:
+                    think_part  = think_match.group(1).strip()
+                    action_part = action_match.group(1).strip()
+                    formatted_response = (
+                        f"[ANNOTATION_THINK_START]\n{think_part}\n[ANNOTATION_THINK_END]\n"
+                        f"[ACTION_DECISION_START]\n{action_part}\n[ACTION_DECISION_END]"
+                    )
+                else:
+                    logger.warning(
+                        "episode %d frame %d 自定义标记提取失败，保存原始输出。raw前200字符: %s",
+                        episode_id, frame_number, raw[:200],
+                    )
+                    formatted_response = raw
+
+                # JSONL 中 user_content 只存路径引用，不内嵌 base64
+                user_content: list[dict[str, Any]]
+                if image_path is not None:
+                    user_content = [
+                        {"type": "image_path", "image_path": image_path},
+                        {"type": "text", "text": prompt},
+                    ]
+                else:
+                    user_content = [{"type": "text", "text": prompt}]
+
+                record: dict[str, Any] = {
+                    "episode_id": episode_id,
+                    "frame": frame_number,
+                    "messages": [
+                        {"role": "user", "content": user_content},
+                        {"role": "assistant", "content": formatted_response},
+                    ],
+                }
+
+                out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                out_f.flush()
+                success_count += 1
+                logger.info("  => 成功写入 Episode %d Frame %d", episode_id, frame_number)
+
+            except Exception as exc:  # noqa: BLE001
+                # 单帧任何异常均只跳过本帧，不中断整个 episode
+                logger.error(
+                    "episode %d frame %d 处理异常，跳过本帧: %s: %s",
+                    episode_id, frame_number, type(exc).__name__, exc,
+                )
+            finally:
+                # 无论成功或失败，始终用真值更新记忆，保证后续帧历史不断链
                 self.update_script_memory(script_memory, frame_number, next_action)
-                continue
-
-            user_content: list[dict[str, Any]]
-            if image_b64 is not None:
-                user_content = [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-                    {"type": "text", "text": prompt},
-                ]
-            else:
-                user_content = [{"type": "text", "text": prompt}]
-
-            record: dict[str, Any] = {
-                "episode_id": episode_id,
-                "frame": frame_number,
-                "messages": [
-                    {"role": "user", "content": user_content},
-                    {"role": "assistant", "content": vlm_response},
-                ],
-            }
-            
-            # 【关键修改】：立刻写入文件并刷新缓冲区
-            out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            out_f.flush()
-            success_count += 1
-            logger.info("  => 成功写入 Episode %d Frame %d", episode_id, frame_number)
-
-            self.update_script_memory(script_memory, frame_number, next_action)
 
         return success_count
 
