@@ -8,15 +8,24 @@ VLN CoT 数据合成脚本
   输出为 OpenAI/HuggingFace 标准的对话微调格式（JSONL）。
 
 使用方法：
-  python3 vln_data_synthesizer.py \\
-      --input   gengshuang_1_H.264_0324_processed.json \\
+  python3 scripts/cot_annotation/vln_data_synthesizer.py \\
+      --input   data/processed/gengshuang_1_H.264_0324_processed.json \\
       --gt      /home/gs/my_test/vln_dataset/data/datasets/r2r/train/train_gt.json \\
       --video-dir /home/gs/my_test/vln_dataset/vln_ce_video \\
-      --output  output_cot.jsonl
+      --output  data/processed/output_cot.jsonl
+
+  使用阿里云百炼成品 API（示例）：
+  python3 scripts/cot_annotation/vln_data_synthesizer.py \\
+      --api-provider dashscope \\
+      --model qwen3.5-plus \\
+      --thinking-mode on
 
   可选参数：
-      --api-base-url  本地 VLM 服务地址（默认 http://localhost:8000/v1）
-      --model         模型名称，与服务端部署名一致（默认 /mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8）
+      --api-provider  后端类型（local / dashscope）
+      --api-base-url  API Base URL；不传时按 provider 使用默认值
+      --model         模型名称；不传时按 provider 使用默认值
+      --api-key-env   成品 API 的密钥环境变量名（默认 DASHSCOPE_API_KEY）
+      --thinking-mode thinking 模式（auto / on / off）
       --max-retries   VLM API 最大重试次数（默认 3）
       --invalid-frame-policy 无效输出的处理策略（默认 skip）
       --episode-ids   只处理指定 episode（如 --episode-ids 1 6 7）
@@ -32,6 +41,7 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 import cv2
@@ -149,6 +159,16 @@ ACTION_MAP: dict[int, str] = {
 VALID_ACTIONS = set(ACTION_MAP.values())
 MAX_STEP_CHARS = 400
 MAX_TOTAL_CHARS = 1600
+LOCAL_API_BASE_URL = "http://localhost:8000/v1"
+LOCAL_MODEL_NAME = "/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8"
+DASHSCOPE_API_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DASHSCOPE_MODEL_NAME = "qwen3.5-plus"
+API_PROVIDER_CHOICES = ("local", "dashscope")
+THINKING_MODE_CHOICES = ("auto", "on", "off")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+DEFAULT_INPUT_JSON = PROCESSED_DATA_DIR / "gengshuang_1_H.264_0324_processed.json"
+DEFAULT_OUTPUT_JSONL = PROCESSED_DATA_DIR / "output_cot.jsonl"
 
 
 def collapse_whitespace(text: str) -> str:
@@ -251,8 +271,12 @@ class VLNDataSynthesizer:
     def __init__(
         self,
         max_retries: int = 3,
-        api_base_url: str = "http://localhost:8000/v1",
-        model_name: str = "/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8",
+        api_provider: str = "local",
+        api_base_url: Optional[str] = None,
+        model_name: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_key_env: str = "DASHSCOPE_API_KEY",
+        thinking_mode: str = "off",
         invalid_frame_policy: str = "skip",
     ) -> None:
         """
@@ -260,32 +284,103 @@ class VLNDataSynthesizer:
 
         Args:
             max_retries:   VLM API 调用失败时的最大重试次数。
-            api_base_url:  本地 VLM 服务的 OpenAI 兼容接口地址。
-                           默认指向 SSH 隧道映射的 8000 端口。
-            model_name:    服务端部署的模型名称，需与 vLLM --served-model-name 一致。
-                           可通过 GET /v1/models 确认实际名称。
+            api_provider:  API 提供方类型。``local`` 表示自部署 OpenAI 兼容接口，
+                           ``dashscope`` 表示阿里云百炼兼容接口。
+            api_base_url:  OpenAI 兼容接口地址。不传时根据 provider 使用默认值。
+            model_name:    模型名称。不传时根据 provider 使用默认值。
+            api_key:       显式传入的 API Key。通常建议优先使用环境变量。
+            api_key_env:   当 provider 需要鉴权时，用于读取 API Key 的环境变量名。
+            thinking_mode: thinking 模式开关。``auto`` 保持后端默认行为，
+                           ``on`` / ``off`` 根据 provider 使用对应参数控制。
             invalid_frame_policy:
                            当模型多次返回不合格结果时的处理方式。
                            ``"skip"`` 表示跳过该帧，``"template"`` 表示使用脚本兜底模板。
         """
+        if api_provider not in API_PROVIDER_CHOICES:
+            raise ValueError(f"unsupported api_provider: {api_provider}")
+        if thinking_mode not in THINKING_MODE_CHOICES:
+            raise ValueError(f"unsupported thinking_mode: {thinking_mode}")
+
         self.max_retries = max_retries
-        self._client = openai.OpenAI(
-            api_key="EMPTY",        # vLLM 本地服务不校验 API key，填任意非空字符串
-            base_url=api_base_url,
-        )
-        self._model_name = model_name
+        self.api_provider = api_provider
+        self.api_key_env = api_key_env
+        self.thinking_mode = thinking_mode
         self.invalid_frame_policy = invalid_frame_policy
-        self._use_json_object_response_format = True
+        self._api_base_url = self._resolve_api_base_url(api_provider, api_base_url)
+        self._model_name = self._resolve_model_name(api_provider, model_name)
+        resolved_api_key = self._resolve_api_key(
+            api_provider=api_provider,
+            api_key=api_key,
+            api_key_env=api_key_env,
+        )
+        self._client = openai.OpenAI(
+            api_key=resolved_api_key,
+            base_url=self._api_base_url,
+        )
+        self._use_json_object_response_format = api_provider == "local"
         logger.info(
-            "VLM 客户端初始化完成 | base_url=%s | model=%s | invalid_policy=%s",
-            api_base_url,
-            model_name,
+            "VLM 客户端初始化完成 | provider=%s | base_url=%s | model=%s | thinking_mode=%s | invalid_policy=%s",
+            api_provider,
+            self._api_base_url,
+            self._model_name,
+            thinking_mode,
             invalid_frame_policy,
         )
 
     # ------------------------------------------------------------------
     # 静态/工具方法
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _resolve_api_base_url(api_provider: str, api_base_url: Optional[str]) -> str:
+        """根据 provider 解析默认 base_url。"""
+        if api_base_url:
+            return api_base_url
+        if api_provider == "dashscope":
+            return DASHSCOPE_API_BASE_URL
+        return LOCAL_API_BASE_URL
+
+    @staticmethod
+    def _resolve_model_name(api_provider: str, model_name: Optional[str]) -> str:
+        """根据 provider 解析默认模型名称。"""
+        if model_name:
+            return model_name
+        if api_provider == "dashscope":
+            return DASHSCOPE_MODEL_NAME
+        return LOCAL_MODEL_NAME
+
+    @staticmethod
+    def _resolve_api_key(
+        api_provider: str,
+        api_key: Optional[str],
+        api_key_env: str,
+    ) -> str:
+        """根据 provider 解析 API Key。"""
+        if api_provider == "local":
+            return "EMPTY"
+        if api_key:
+            return api_key
+        env_value = os.getenv(api_key_env)
+        if env_value:
+            return env_value
+        raise ValueError(
+            f"provider={api_provider} 需要 API Key，请设置环境变量 {api_key_env} 或通过 --api-key 显式传入。"
+        )
+
+    def _build_request_extra_body(self) -> dict[str, Any]:
+        """根据 provider 构造额外请求参数。"""
+        if self.api_provider == "dashscope":
+            extra_body: dict[str, Any] = {}
+        else:
+            extra_body = {"repetition_penalty": 1.01}
+        if self.thinking_mode == "auto":
+            return extra_body
+        enable_thinking = self.thinking_mode == "on"
+        if self.api_provider == "dashscope":
+            extra_body["enable_thinking"] = enable_thinking
+        else:
+            extra_body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
+        return extra_body
 
     @staticmethod
     def normalize_bbox(bbox: dict[str, float]) -> list[int]:
@@ -724,7 +819,7 @@ class VLNDataSynthesizer:
                     "temperature": 0.0,
                     "top_p": 1.0,
                     "max_tokens": 1200,
-                    "extra_body": {"repetition_penalty": 1.01},
+                    "extra_body": self._build_request_extra_body(),
                 }
                 if self._use_json_object_response_format:
                     request_kwargs["response_format"] = {"type": "json_object"}
@@ -1016,7 +1111,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input",
-        default="gengshuang_1_H.264_0324_processed.json",
+        default=str(DEFAULT_INPUT_JSON),
         help="processed.json 文件路径",
     )
     parser.add_argument(
@@ -1031,19 +1126,40 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        default="output_cot.jsonl",
+        default=str(DEFAULT_OUTPUT_JSONL),
         help="输出 JSONL 文件路径",
     )
     parser.add_argument(
+        "--api-provider",
+        choices=API_PROVIDER_CHOICES,
+        default="local",
+        help="API 提供方类型：local=自部署 OpenAI 兼容接口，dashscope=阿里云百炼兼容接口",
+    )
+    parser.add_argument(
         "--api-base-url",
-        default="http://localhost:8000/v1",
-        help="本地 VLM 服务的 OpenAI 兼容接口地址（SSH 隧道映射后的地址）",
+        default=None,
+        help="OpenAI 兼容接口地址；不传时根据 --api-provider 自动选择默认值",
     )
     parser.add_argument(
         "--model",
-        default="/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8",
-        help="服务端部署的模型名称，需与 vLLM --served-model-name 一致；"
-             "可通过 curl http://localhost:8000/v1/models 确认",
+        default=None,
+        help="模型名称；不传时 local 默认为自部署模型名，dashscope 默认为 qwen3.5-plus",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="显式传入 API Key；通常建议优先通过环境变量提供",
+    )
+    parser.add_argument(
+        "--api-key-env",
+        default="DASHSCOPE_API_KEY",
+        help="当 provider 需要鉴权时，读取 API Key 的环境变量名",
+    )
+    parser.add_argument(
+        "--thinking-mode",
+        choices=THINKING_MODE_CHOICES,
+        default="off",
+        help="thinking 模式：auto=保持后端默认行为，on=开启，off=关闭",
     )
     parser.add_argument(
         "--max-retries",
@@ -1072,8 +1188,12 @@ def main() -> None:
     args = parse_args()
     synthesizer = VLNDataSynthesizer(
         max_retries=args.max_retries,
+        api_provider=args.api_provider,
         api_base_url=args.api_base_url,
         model_name=args.model,
+        api_key=args.api_key,
+        api_key_env=args.api_key_env,
+        thinking_mode=args.thinking_mode,
         invalid_frame_policy=args.invalid_frame_policy,
     )
     synthesizer.run(

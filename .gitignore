@@ -1,2 +1,3 @@
-/frames/
+/data/processed/frames/
+__pycache__/
 *.pyc

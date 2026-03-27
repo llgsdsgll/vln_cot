@@ -1,43 +1,33 @@
 #!/usr/bin/env python3
 """
-视频标注数据处理脚本
+视频标注数据处理脚本。
 
 用途：
-  处理视频标注JSON文件，将标注数据按帧整理，验证subtask和object是否属于原始指令。
+  处理原始标注 JSON，将标注结果按帧整理，并验证 subtask / object 是否属于原始指令。
 
 使用方法：
-  python3 process_annotations.py
+  python3 scripts/data_processing/process_annotations.py
 
-输入文件：
-  - gengshuang_1_H.264_03182.json: 包含视频标注数据
-  - /mnt/data-cpfs/gengshuang/vln_data/vln_ce/raw_data/r2r/train/train.json: 原始指令数据
+默认输入：
+  - data/raw/gengshuang_1_H.264_0324.json
+  - /home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json
 
-输出文件：
-  - gengshuang_1_H.264_03182_processed.json: 处理后的帧级标注数据
-    格式: [
-      {
-        "episode_id": 1,
-        "video_url": "https://...",
-        "instruction": "原始指令文本",
-        "duration": 39,
-        "frames": [
-          {
-            "frame": 1,
-            "subtask": "subtask文本",
-            "objects": [
-              {"label": "object名称", "bbox": {"x": 0, "y": 0, "width": 0, "height": 0}}
-            ]
-          }
-        ]
-      }
-    ]
-
-  - gengshuang_1_H.264_03182_errors.txt: 错误和警告日志
-    包含：缺少subtask的帧、subtask/object不匹配原指令的警告
+默认输出：
+  - data/processed/gengshuang_1_H.264_0324_processed.json
+  - data/processed/gengshuang_1_H.264_0324_errors.txt
 """
 import json
 import re
-from collections import defaultdict
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+DEFAULT_INPUT_FILE = RAW_DATA_DIR / "gengshuang_1_H.264_0324.json"
+DEFAULT_TRAIN_FILE = Path("/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json")
+DEFAULT_OUTPUT_FILE = PROCESSED_DATA_DIR / "gengshuang_1_H.264_0324_processed.json"
+DEFAULT_ERROR_FILE = PROCESSED_DATA_DIR / "gengshuang_1_H.264_0324_errors.txt"
 
 def extract_episode_id(url):
     """从URL中提取episode_id，如 ep00001 -> 1"""
@@ -148,13 +138,15 @@ def process_video(video_data, instructions, errors):
     }
 
 def main():
-    input_file = 'gengshuang_1_H.264_0324.json'
-    train_file = '/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json'
-    output_file = 'gengshuang_1_H.264_0324_processed.json'
-    error_file = 'gengshuang_1_H.264_0324_errors.txt'
+    input_file = DEFAULT_INPUT_FILE
+    train_file = DEFAULT_TRAIN_FILE
+    output_file = DEFAULT_OUTPUT_FILE
+    error_file = DEFAULT_ERROR_FILE
+
+    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     # 加载数据
-    with open(input_file, 'r') as f:
+    with open(input_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     instructions = load_instructions(train_file)
@@ -168,11 +160,11 @@ def main():
         results.append(result)
 
     # 保存结果
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     # 保存错误日志
-    with open(error_file, 'w') as f:
+    with open(error_file, 'w', encoding='utf-8') as f:
         for error in errors:
             f.write(error + '\n')
 

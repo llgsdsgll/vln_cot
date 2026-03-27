@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 import json
 import re
-from collections import defaultdict
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+DEFAULT_TRAIN_FILE = Path("/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json")
+DEFAULT_RAW_INPUT_FILES = [
+    RAW_DATA_DIR / "gengshuang_3_H.264.json",
+    RAW_DATA_DIR / "gengshuang_5_H.264.json",
+]
+DEFAULT_PROCESSED_INPUT_FILE = PROCESSED_DATA_DIR / "gengshuang_1_H.264_0324_processed.json"
+DEFAULT_OUTPUT_FILE = PROCESSED_DATA_DIR / "merged_annotations.json"
+DEFAULT_ERROR_FILE = PROCESSED_DATA_DIR / "merged_annotations_errors.txt"
 
 def extract_episode_id(url):
     match = re.search(r'ep(\d+)', url)
@@ -88,7 +101,8 @@ def process_video(video_data, instructions, errors):
             'instruction': instruction, 'duration': duration, 'frames': frames}
 
 def main():
-    train_file = '/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json'
+    train_file = DEFAULT_TRAIN_FILE
+    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     instructions = load_instructions(train_file)
 
@@ -96,8 +110,8 @@ def main():
     all_errors = []
 
     # 处理gengshuang_3和gengshuang_5
-    for input_file in ['gengshuang_3_H.264.json', 'gengshuang_5_H.264.json']:
-        with open(input_file, 'r') as f:
+    for input_file in DEFAULT_RAW_INPUT_FILES:
+        with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         for video_data in data:
@@ -105,7 +119,7 @@ def main():
             all_results.append(result)
 
     # 加载已处理的gengshuang_1
-    with open('gengshuang_1_H.264_0324_processed.json', 'r') as f:
+    with open(DEFAULT_PROCESSED_INPUT_FILE, 'r', encoding='utf-8') as f:
         processed_data = json.load(f)
 
     all_results.extend(processed_data)
@@ -114,17 +128,17 @@ def main():
     all_results.sort(key=lambda x: x['episode_id'], reverse=True)
 
     # 保存结果
-    with open('merged_annotations.json', 'w') as f:
+    with open(DEFAULT_OUTPUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
 
-    with open('merged_annotations_errors.txt', 'w') as f:
+    with open(DEFAULT_ERROR_FILE, 'w', encoding='utf-8') as f:
         for error in all_errors:
             f.write(error + '\n')
 
     print(f"处理完成！")
     print(f"- 总共处理了 {len(all_results)} 个视频")
-    print(f"- 结果保存到: merged_annotations.json")
-    print(f"- 错误日志: merged_annotations_errors.txt ({len(all_errors)} 条)")
+    print(f"- 结果保存到: {DEFAULT_OUTPUT_FILE}")
+    print(f"- 错误日志: {DEFAULT_ERROR_FILE} ({len(all_errors)} 条)")
 
 if __name__ == '__main__':
     main()
