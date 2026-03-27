@@ -1,3 +1,4 @@
 /data/processed/frames/
 __pycache__/
 *.pyc
+debug/

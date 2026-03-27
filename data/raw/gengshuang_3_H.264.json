@@ -3261,7 +3261,7 @@
         "meta": {},
         "created_at": "2026-03-24T07:56:35.567014Z",
         "updated_at": "2026-03-25T03:20:08.097196Z",
-        "inner_id": 20,
+        "inner_id": 19,
         "total_annotations": 1,
         "cancelled_annotations": 0,
         "total_predictions": 0,
@@ -23249,6 +23249,3718 @@
         "x_status": "ANNOTATED",
         "project": 2577,
         "updated_by": 491,
+        "comment_authors": []
+    },
+    {
+        "id": 441826,
+        "annotations": [
+            {
+                "id": 306766,
+                "completed_by": 491,
+                "result": [
+                    {
+                        "id": "o7zsGdlyZP",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk out of the bedroom into the hallway"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 3.359375,
+                                    "y": 85,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 26.5625,
+                                    "height": 11.041666666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 3.359375,
+                                    "y": 85,
+                                    "time": 20,
+                                    "frame": 20,
+                                    "width": 26.5625,
+                                    "height": 11.041666666666666,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "m8wnu22LQA",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bedroom"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 20.859375,
+                                    "y": 16.875,
+                                    "time": 2,
+                                    "frame": 2,
+                                    "width": 71.25,
+                                    "height": 65.20833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 16.640625,
+                                    "y": 19.583333333333332,
+                                    "time": 3,
+                                    "frame": 3,
+                                    "width": 71.25,
+                                    "height": 65.20833333333333,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "fjVHdGLuEU",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Hallway"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 23.828125,
+                                    "y": 69.79166666666666,
+                                    "time": 8,
+                                    "frame": 8,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 21.015625,
+                                    "y": 68.54166666666666,
+                                    "time": 9,
+                                    "frame": 9,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 15.703125000000002,
+                                    "y": 70.83333333333334,
+                                    "time": 10,
+                                    "frame": 10,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 23.203125,
+                                    "y": 71.25000000000001,
+                                    "time": 11,
+                                    "frame": 11,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 25.859375,
+                                    "y": 73.54166666666669,
+                                    "time": 12,
+                                    "frame": 12,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 34.609375,
+                                    "y": 75.20833333333334,
+                                    "time": 13,
+                                    "frame": 13,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.265625,
+                                    "y": 76.45833333333336,
+                                    "time": 14,
+                                    "frame": 14,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.078125,
+                                    "y": 78.33333333333334,
+                                    "time": 15,
+                                    "frame": 15,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.109375000000004,
+                                    "y": 78.54166666666667,
+                                    "time": 16,
+                                    "frame": 16,
+                                    "width": 14.0625,
+                                    "height": 21.25,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "FyqjWocyfT",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:At the hallway turn right and then left"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 6.953125,
+                                    "y": 88.125,
+                                    "time": 21,
+                                    "frame": 21,
+                                    "width": 22.03125,
+                                    "height": 7.291666666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 6.953125,
+                                    "y": 88.125,
+                                    "time": 36,
+                                    "frame": 36,
+                                    "width": 22.03125,
+                                    "height": 7.291666666666667,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "HQ2JzSsxOG",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk across the living room"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 9.296875,
+                                    "y": 89.58333333333334,
+                                    "time": 37,
+                                    "frame": 37,
+                                    "width": 21.71875,
+                                    "height": 6.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 9.296875,
+                                    "y": 89.58333333333334,
+                                    "time": 61,
+                                    "frame": 61,
+                                    "width": 21.71875,
+                                    "height": 6.25,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "B1lg5wOcUX",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Living room"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 48.98437500000001,
+                                    "y": 42.29166666666666,
+                                    "time": 37,
+                                    "frame": 37,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.17187500000001,
+                                    "y": 40.833333333333336,
+                                    "time": 38,
+                                    "frame": 38,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 53.59375000000001,
+                                    "y": 42.50000000000001,
+                                    "time": 39,
+                                    "frame": 39,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 52.03125000000001,
+                                    "y": 41.145833333333336,
+                                    "time": 40,
+                                    "frame": 40,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 50.46875000000001,
+                                    "y": 39.791666666666664,
+                                    "time": 41,
+                                    "frame": 41,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 48.75000000000001,
+                                    "y": 38.333333333333336,
+                                    "time": 42,
+                                    "frame": 42,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 48.28125000000001,
+                                    "y": 38.54166666666667,
+                                    "time": 43,
+                                    "frame": 43,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 50.62500000000001,
+                                    "y": 39.791666666666664,
+                                    "time": 44,
+                                    "frame": 44,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 49.218750000000014,
+                                    "y": 40,
+                                    "time": 45,
+                                    "frame": 45,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 51.87500000000001,
+                                    "y": 40.833333333333336,
+                                    "time": 46,
+                                    "frame": 46,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 49.37500000000001,
+                                    "y": 39.791666666666664,
+                                    "time": 47,
+                                    "frame": 47,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.00000000000001,
+                                    "y": 39.791666666666664,
+                                    "time": 48,
+                                    "frame": 48,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.93750000000001,
+                                    "y": 42.083333333333336,
+                                    "time": 49,
+                                    "frame": 49,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 36.5625,
+                                    "y": 42.083333333333336,
+                                    "time": 50,
+                                    "frame": 50,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 48.28125,
+                                    "y": 41.041666666666664,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 49.53124999999999,
+                                    "y": 43.33333333333333,
+                                    "time": 52,
+                                    "frame": 52,
+                                    "width": 46.25,
+                                    "height": 41.041666666666664,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "TZ0hivS3EW",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Then turn left and step outside to the front entrance of the house"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 3.046875,
+                                    "y": 89.79166666666667,
+                                    "time": 62,
+                                    "frame": 62,
+                                    "width": 22.8125,
+                                    "height": 7.916666666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "3F017GB8qD",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:front entrance of the house"
+                            ],
+                            "duration": 76,
+                            "sequence": [
+                                {
+                                    "x": 3.9843749999999996,
+                                    "y": 50.208333333333336,
+                                    "time": 71,
+                                    "frame": 71,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000004,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999999914,
+                                    "y": 55.41666666666668,
+                                    "time": 72,
+                                    "frame": 72,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000007,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 3.2812499999999973,
+                                    "y": 58.95833333333334,
+                                    "time": 73,
+                                    "frame": 73,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000007,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 12.968750000000002,
+                                    "y": 58.95833333333334,
+                                    "time": 74,
+                                    "frame": 74,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000007,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 15.312500000000002,
+                                    "y": 59.79166666666668,
+                                    "time": 75,
+                                    "frame": 75,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000007,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 13.750000000000002,
+                                    "y": 61.66666666666668,
+                                    "time": 76,
+                                    "frame": 76,
+                                    "width": 48.28125,
+                                    "height": 27.500000000000007,
+                                    "enabled": true,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 76
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-26T10:40:34.035188Z",
+                "updated_at": "2026-03-26T10:40:34.035199Z",
+                "draft_created_at": "2026-03-26T10:33:56.188970Z",
+                "lead_time": 968.712,
+                "prediction": {},
+                "result_count": 8,
+                "unique_id": "91a0cc8c-b8e0-4416-a79e-ca716c30c762",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441826,
+                "project": 2577,
+                "updated_by": 491,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 76.0,
+                    "total_frames": 76
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00564_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570435Z",
+        "updated_at": "2026-03-26T10:40:34.078161Z",
+        "inner_id": 165,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 491,
+        "comment_authors": []
+    },
+    {
+        "id": 441829,
+        "annotations": [
+            {
+                "id": 306777,
+                "completed_by": 491,
+                "result": [
+                    {
+                        "id": "wkUKeF7tzF",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk out of bathroom and turn right"
+                            ],
+                            "duration": 46,
+                            "sequence": [
+                                {
+                                    "x": 5.859375,
+                                    "y": 86.66666666666667,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 20.15625,
+                                    "height": 8.125,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 5.859375,
+                                    "y": 86.66666666666667,
+                                    "time": 17,
+                                    "frame": 17,
+                                    "width": 20.15625,
+                                    "height": 8.125,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 46
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "SxMNsn9Hcv",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Go through bedroom into bathroom and wait there"
+                            ],
+                            "duration": 46,
+                            "sequence": [
+                                {
+                                    "x": 3.2031249999999996,
+                                    "y": 86.45833333333334,
+                                    "time": 18,
+                                    "frame": 18,
+                                    "width": 20.625,
+                                    "height": 9.166666666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 46
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "EzjNfVqkKP",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bedroom"
+                            ],
+                            "duration": 46,
+                            "sequence": [
+                                {
+                                    "x": 42.890625,
+                                    "y": 42.916666666666664,
+                                    "time": 22,
+                                    "frame": 22,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.390625,
+                                    "y": 43.125,
+                                    "time": 23,
+                                    "frame": 23,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 38.828125,
+                                    "y": 43.125,
+                                    "time": 24,
+                                    "frame": 24,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.703125,
+                                    "y": 43.75,
+                                    "time": 25,
+                                    "frame": 25,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 41.796875,
+                                    "y": 44.166666666666664,
+                                    "time": 26,
+                                    "frame": 26,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 38.828125,
+                                    "y": 46.25,
+                                    "time": 27,
+                                    "frame": 27,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.078125,
+                                    "y": 52.083333333333336,
+                                    "time": 28,
+                                    "frame": 28,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 43.359375,
+                                    "y": 53.125,
+                                    "time": 29,
+                                    "frame": 29,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 44.921875,
+                                    "y": 53.333333333333336,
+                                    "time": 30,
+                                    "frame": 30,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 41.484375,
+                                    "y": 51.45833333333334,
+                                    "time": 31,
+                                    "frame": 31,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45,
+                                    "y": 52.916666666666664,
+                                    "time": 32,
+                                    "frame": 32,
+                                    "width": 54.84375,
+                                    "height": 46.458333333333336,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 46
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "rh9j6iMZMT",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 46,
+                            "sequence": [
+                                {
+                                    "x": 7.578124999999999,
+                                    "y": 28.541666666666664,
+                                    "time": 42,
+                                    "frame": 42,
+                                    "width": 78.28125,
+                                    "height": 56.666666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 6.015624999999999,
+                                    "y": 25.624999999999996,
+                                    "time": 43,
+                                    "frame": 43,
+                                    "width": 78.28125,
+                                    "height": 56.666666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 9.296875,
+                                    "y": 26.875,
+                                    "time": 44,
+                                    "frame": 44,
+                                    "width": 78.28125,
+                                    "height": 56.666666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 13.203124999999998,
+                                    "y": 28.958333333333336,
+                                    "time": 45,
+                                    "frame": 45,
+                                    "width": 78.28125,
+                                    "height": 56.666666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 10.078124999999998,
+                                    "y": 28.958333333333336,
+                                    "time": 46,
+                                    "frame": 46,
+                                    "width": 78.28125,
+                                    "height": 56.666666666666664,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 46
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-26T10:53:06.778074Z",
+                "updated_at": "2026-03-26T10:53:06.778087Z",
+                "draft_created_at": "2026-03-26T10:43:18.869020Z",
+                "lead_time": 610.858,
+                "prediction": {},
+                "result_count": 4,
+                "unique_id": "80bfc67f-7d1d-4a27-bffd-f74482c972a5",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441829,
+                "project": 2577,
+                "updated_by": 491,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 46.0,
+                    "total_frames": 46
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00567_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570502Z",
+        "updated_at": "2026-03-26T10:53:06.821578Z",
+        "inner_id": 168,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 491,
+        "comment_authors": []
+    },
+    {
+        "id": 441832,
+        "annotations": [
+            {
+                "id": 307000,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "ewCs3g2qyi",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Enter the building"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 0.234375,
+                                    "y": 0.20833333333333393,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 4.0625,
+                                    "height": 4.583333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.234375,
+                                    "y": 0.20833333333333393,
+                                    "time": 9,
+                                    "frame": 9,
+                                    "width": 4.0625,
+                                    "height": 4.583333333333333,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "ZG-KyNr7Jv",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Building"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 36.484375,
+                                    "y": 29.791666666666668,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.171875,
+                                    "y": 27.083333333333332,
+                                    "time": 2,
+                                    "frame": 2,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 62.734375,
+                                    "y": 28.749999999999996,
+                                    "time": 3,
+                                    "frame": 3,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 69.296875,
+                                    "y": 27.916666666666668,
+                                    "time": 4,
+                                    "frame": 4,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 69.296875,
+                                    "y": 27.916666666666668,
+                                    "time": 5,
+                                    "frame": 5,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": false,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 56.640625,
+                                    "y": 27.291666666666664,
+                                    "time": 7,
+                                    "frame": 7,
+                                    "width": 24.21875,
+                                    "height": 33.125,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "IyCupahSLw",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk through the kitchen"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 10,
+                                    "frame": 10,
+                                    "width": 7.656250000000001,
+                                    "height": 13.125000000000014,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 50,
+                                    "frame": 50,
+                                    "width": 7.656250000000001,
+                                    "height": 13.125000000000014,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "6lBc-QiIK2",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Kitchen"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 25,
+                                    "y": 51.250000000000064,
+                                    "time": 37,
+                                    "frame": 37,
+                                    "width": 41.09375,
+                                    "height": 48.333333333333265,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 24.84375,
+                                    "y": 46.25000000000006,
+                                    "time": 38,
+                                    "frame": 38,
+                                    "width": 40.62499999999996,
+                                    "height": 53.54166666666661,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 29.414062500000004,
+                                    "y": 46.041666666666714,
+                                    "time": 39,
+                                    "frame": 39,
+                                    "width": 39.27734374999996,
+                                    "height": 53.54166666666661,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.109375000000004,
+                                    "y": 46.25000000000005,
+                                    "time": 40,
+                                    "frame": 40,
+                                    "width": 37.92968749999995,
+                                    "height": 53.54166666666661,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 8.242187500000005,
+                                    "y": 46.25000000000005,
+                                    "time": 41,
+                                    "frame": 41,
+                                    "width": 36.58203124999994,
+                                    "height": 53.54166666666661,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 11.000000000000004,
+                                    "y": 46.25000000000005,
+                                    "time": 42,
+                                    "frame": 42,
+                                    "width": 35.23437499999994,
+                                    "height": 53.54166666666661,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "RC9t05_llr",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Enter the bathroom, wait at the sink"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 6.25,
+                                    "height": 8.541666666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 58,
+                                    "frame": 58,
+                                    "width": 6.25,
+                                    "height": 8.541666666666666,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "k-QEIQYBBV",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 58,
+                            "sequence": [
+                                {
+                                    "x": 53.59375000000001,
+                                    "y": 60.41666666666667,
+                                    "time": 56,
+                                    "frame": 56,
+                                    "width": 15.312500000000002,
+                                    "height": 33.95833333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 62.81250000000001,
+                                    "y": 65.83333333333331,
+                                    "time": 57,
+                                    "frame": 57,
+                                    "width": 15.312500000000002,
+                                    "height": 33.95833333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 65.00000000000001,
+                                    "y": 52.08333333333328,
+                                    "time": 58,
+                                    "frame": 58,
+                                    "width": 20.624999999999996,
+                                    "height": 47.70833333333338,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 58
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T03:55:53.291431Z",
+                "updated_at": "2026-03-27T05:02:27.529334Z",
+                "draft_created_at": "2026-03-27T03:27:58.401756Z",
+                "lead_time": 5878.965,
+                "prediction": {},
+                "result_count": 6,
+                "unique_id": "d447d576-9c5e-496e-98a8-150f11befc38",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441832,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 58.0,
+                    "total_frames": 58
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00570_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570569Z",
+        "updated_at": "2026-03-27T05:02:27.594651Z",
+        "inner_id": 171,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
+        "comment_authors": []
+    },
+    {
+        "id": 441836,
+        "annotations": [
+            {
+                "id": 307081,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "fofJE-rlWc",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk into the foyer"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 0.15625000000000083,
+                                    "y": 0.20833333333333334,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 6.093749999999955,
+                                    "height": 8.958333333333298,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000083,
+                                    "y": 0.20833333333333334,
+                                    "time": 13,
+                                    "frame": 13,
+                                    "width": 6.093749999999955,
+                                    "height": 8.958333333333298,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "53EK3GG_hL",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Foyer"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 29.531249999999996,
+                                    "y": 29.583333333333332,
+                                    "time": 2,
+                                    "frame": 2,
+                                    "width": 27.65625,
+                                    "height": 39.375,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 48.4375,
+                                    "y": 28.958333333333343,
+                                    "time": 3,
+                                    "frame": 3,
+                                    "width": 27.65625,
+                                    "height": 39.375,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 39.375,
+                                    "y": 46.458333333333336,
+                                    "time": 4,
+                                    "frame": 4,
+                                    "width": 27.65625,
+                                    "height": 39.375,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 29.947916666666664,
+                                    "y": 55.06944444444445,
+                                    "time": 5,
+                                    "frame": 5,
+                                    "width": 27.65625,
+                                    "height": 39.375,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 21.92708333333332,
+                                    "y": 54.722222222222236,
+                                    "time": 6,
+                                    "frame": 6,
+                                    "width": 27.65625,
+                                    "height": 39.375,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "ow-YXy--ZA",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Take a left"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 14,
+                                    "frame": 14,
+                                    "width": 6.406250000000041,
+                                    "height": 9.166666666666721,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333373,
+                                    "time": 23,
+                                    "frame": 23,
+                                    "width": 6.406250000000041,
+                                    "height": 9.166666666666721,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "ld14NlDJZC",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk down the hallway"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 24,
+                                    "frame": 24,
+                                    "width": 7.968749999999999,
+                                    "height": 7.708333333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 35,
+                                    "frame": 35,
+                                    "width": 7.968749999999999,
+                                    "height": 7.708333333333334,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "B84yEAf2gj",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Hallway"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 14.843750000000004,
+                                    "y": 33.54166666666666,
+                                    "time": 24,
+                                    "frame": 24,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 26.09375,
+                                    "y": 30.416666666666657,
+                                    "time": 25,
+                                    "frame": 25,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.812499999999996,
+                                    "y": 35.62499999999999,
+                                    "time": 26,
+                                    "frame": 26,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.03125,
+                                    "y": 26.24999999999999,
+                                    "time": 27,
+                                    "frame": 27,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 26.718750000000004,
+                                    "y": 41.458333333333314,
+                                    "time": 28,
+                                    "frame": 28,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.187499999999996,
+                                    "y": 47.29166666666665,
+                                    "time": 29,
+                                    "frame": 29,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.3125,
+                                    "y": 41.87499999999998,
+                                    "time": 30,
+                                    "frame": 30,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.03125,
+                                    "y": 42.083333333333314,
+                                    "time": 31,
+                                    "frame": 31,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.96875,
+                                    "y": 44.16666666666665,
+                                    "time": 32,
+                                    "frame": 32,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 40.46875,
+                                    "y": 47.49999999999998,
+                                    "time": 33,
+                                    "frame": 33,
+                                    "width": 23.75,
+                                    "height": 44.166666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 34.84375,
+                                    "y": 41.25000000000003,
+                                    "time": 34,
+                                    "frame": 34,
+                                    "width": 33.90625000000001,
+                                    "height": 58.54166666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 34.375,
+                                    "y": 38.33333333333336,
+                                    "time": 35,
+                                    "frame": 35,
+                                    "width": 33.90625000000001,
+                                    "height": 58.54166666666666,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "qLNnBf7KQg",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Take a right"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 36,
+                                    "frame": 36,
+                                    "width": 6.875000000000001,
+                                    "height": 6.666666666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 43,
+                                    "frame": 43,
+                                    "width": 6.875000000000001,
+                                    "height": 6.666666666666667,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "8Mr-36niei",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Taker your first left into the bathroom, and stop in the doorway"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 44,
+                                    "frame": 44,
+                                    "width": 4.375,
+                                    "height": 5.416666666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 47,
+                                    "frame": 47,
+                                    "width": 4.375,
+                                    "height": 5.416666666666667,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "_mlAlF0_9t",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Doorway"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 23.749999999999954,
+                                    "y": 0.41666666666666846,
+                                    "time": 44,
+                                    "frame": 44,
+                                    "width": 40.156250000000036,
+                                    "height": 99.3749999999999,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 18.749999999999943,
+                                    "y": 0.2083333333333323,
+                                    "time": 45,
+                                    "frame": 45,
+                                    "width": 46.09375000000004,
+                                    "height": 99.3749999999999,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000001604,
+                                    "y": 0.2083333333333276,
+                                    "time": 46,
+                                    "frame": 46,
+                                    "width": 67.65625000000004,
+                                    "height": 99.3749999999997,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 55.78124999999999,
+                                    "y": 0.41666666666715413,
+                                    "time": 47,
+                                    "frame": 47,
+                                    "width": 19.843749999999968,
+                                    "height": 99.37499999999953,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "w8c3QlBQy0",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 47,
+                            "sequence": [
+                                {
+                                    "x": 25.46875,
+                                    "y": 46.25,
+                                    "time": 45,
+                                    "frame": 45,
+                                    "width": 30.000000000000004,
+                                    "height": 46.041666666666686,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 16.5625,
+                                    "y": 52.29166666666666,
+                                    "time": 46,
+                                    "frame": 46,
+                                    "width": 30.000000000000004,
+                                    "height": 46.041666666666686,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 13.281249999999996,
+                                    "y": 53.74999999999998,
+                                    "time": 47,
+                                    "frame": 47,
+                                    "width": 30.000000000000004,
+                                    "height": 46.041666666666686,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 47
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T05:44:26.251698Z",
+                "updated_at": "2026-03-27T05:51:27.338017Z",
+                "draft_created_at": "2026-03-27T05:19:23.801839Z",
+                "lead_time": 1705.427,
+                "prediction": {},
+                "result_count": 9,
+                "unique_id": "994ee3ad-d707-45c3-8938-461e10c3ab30",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441836,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 47.0,
+                    "total_frames": 47
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00574_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570669Z",
+        "updated_at": "2026-03-27T05:51:27.403453Z",
+        "inner_id": 175,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
+        "comment_authors": []
+    },
+    {
+        "id": 441839,
+        "annotations": [
+            {
+                "id": 307167,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "sdbdsucoqu",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk towards the kitchen area"
+                            ],
+                            "duration": 53,
+                            "sequence": [
+                                {
+                                    "x": 0.15624999999999967,
+                                    "y": 0.20833333333333343,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 6.71875,
+                                    "height": 7.5,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999999967,
+                                    "y": 0.20833333333333343,
+                                    "time": 32,
+                                    "frame": 32,
+                                    "width": 6.71875,
+                                    "height": 7.5,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 53
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "s3B-j8smZq",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Kitchen area"
+                            ],
+                            "duration": 53,
+                            "sequence": [
+                                {
+                                    "x": 71.640625,
+                                    "y": 36.25,
+                                    "time": 13,
+                                    "frame": 13,
+                                    "width": 27.734375,
+                                    "height": 32.5,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 72.109375,
+                                    "y": 31.458333333333332,
+                                    "time": 14,
+                                    "frame": 14,
+                                    "width": 27.734375,
+                                    "height": 32.5,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 72.109375,
+                                    "y": 41.66666666666667,
+                                    "time": 15,
+                                    "frame": 15,
+                                    "width": 27.734375,
+                                    "height": 32.5,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 53
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "cK_Li30tw3",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Turn left"
+                            ],
+                            "duration": 53,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 33,
+                                    "frame": 33,
+                                    "width": 9.375000000000153,
+                                    "height": 12.291666666666773,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 42,
+                                    "frame": 42,
+                                    "width": 9.375000000000153,
+                                    "height": 12.291666666666773,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 53
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "gd8w0jatBT",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk inside the bathroom"
+                            ],
+                            "duration": 53,
+                            "sequence": [
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 43,
+                                    "frame": 43,
+                                    "width": 5.546875,
+                                    "height": 6.25,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0,
+                                    "y": 0,
+                                    "time": 53,
+                                    "frame": 53,
+                                    "width": 5.546875,
+                                    "height": 6.25,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 53
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "SIwX5a4FAf",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 53,
+                            "sequence": [
+                                {
+                                    "x": 33.359375,
+                                    "y": 46.666666666666664,
+                                    "time": 48,
+                                    "frame": 48,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 33.828125,
+                                    "y": 49.791666666666664,
+                                    "time": 49,
+                                    "frame": 49,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 31.953125,
+                                    "y": 44.375,
+                                    "time": 50,
+                                    "frame": 50,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 33.671875,
+                                    "y": 50.83333333333333,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 35.234375,
+                                    "y": 52.708333333333336,
+                                    "time": 52,
+                                    "frame": 52,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 30.390624999999993,
+                                    "y": 52.708333333333336,
+                                    "time": 53,
+                                    "frame": 53,
+                                    "width": 36.5625,
+                                    "height": 47.083333333333336,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 53
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T06:27:52.867086Z",
+                "updated_at": "2026-03-27T06:27:52.867099Z",
+                "draft_created_at": "2026-03-27T06:02:32.797012Z",
+                "lead_time": 1358.717,
+                "prediction": {},
+                "result_count": 5,
+                "unique_id": "717a8e4a-2e3f-4da4-a213-648a5e498461",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441839,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 53.0,
+                    "total_frames": 53
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00577_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570738Z",
+        "updated_at": "2026-03-27T06:27:52.912725Z",
+        "inner_id": 178,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
+        "comment_authors": []
+    },
+    {
+        "id": 441841,
+        "annotations": [
+            {
+                "id": 307405,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "IW1ET2-FMr",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Exit the bathroom"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333298,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 5.78125,
+                                    "height": 7.708333333333335,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333298,
+                                    "time": 21,
+                                    "frame": 21,
+                                    "width": 5.78125,
+                                    "height": 7.708333333333335,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "WmijmvF6GW",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 12.421875,
+                                    "y": 37.5,
+                                    "time": 4,
+                                    "frame": 4,
+                                    "width": 31.406250000000004,
+                                    "height": 47.708333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 24.062499999999996,
+                                    "y": 50.416666666666664,
+                                    "time": 5,
+                                    "frame": 5,
+                                    "width": 36.40625000000001,
+                                    "height": 49.375,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 18.88020833333333,
+                                    "y": 50.97222222222222,
+                                    "time": 6,
+                                    "frame": 6,
+                                    "width": 34.73958333333334,
+                                    "height": 48.81944444444444,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.213541666666664,
+                                    "y": 51.52777777777781,
+                                    "time": 7,
+                                    "frame": 7,
+                                    "width": 33.07291666666667,
+                                    "height": 48.263888888888864,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 27.265624999999993,
+                                    "y": 52.083333333333336,
+                                    "time": 8,
+                                    "frame": 8,
+                                    "width": 31.406250000000004,
+                                    "height": 47.708333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 37.48958333333332,
+                                    "y": 53.66666666666667,
+                                    "time": 9,
+                                    "frame": 9,
+                                    "width": 30.03125000000001,
+                                    "height": 46.12499999999999,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "Oe4BABIsF3",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Turn right"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 0.546875,
+                                    "y": 0.20833333333333004,
+                                    "time": 22,
+                                    "frame": 22,
+                                    "width": 7.343749999999999,
+                                    "height": 10.20833333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.546875,
+                                    "y": 0.20833333333333004,
+                                    "time": 31,
+                                    "frame": 31,
+                                    "width": 7.343749999999999,
+                                    "height": 10.20833333333334,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "aUZfzEuUgZ",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Exit the bedroom"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 0.15625000000000014,
+                                    "y": 0.20833333333333334,
+                                    "time": 32,
+                                    "frame": 32,
+                                    "width": 5.46875,
+                                    "height": 6.875000000000002,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000014,
+                                    "y": 0.20833333333333334,
+                                    "time": 50,
+                                    "frame": 50,
+                                    "width": 5.46875,
+                                    "height": 6.875000000000002,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "6pFwu8xOxk",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bedroom"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 29.453125000000004,
+                                    "y": 33.95833333333334,
+                                    "time": 32,
+                                    "frame": 32,
+                                    "width": 47.1875,
+                                    "height": 50.83333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 29.765625000000007,
+                                    "y": 47.5,
+                                    "time": 33,
+                                    "frame": 33,
+                                    "width": 47.1875,
+                                    "height": 50.83333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 23.203125,
+                                    "y": 48.95833333333333,
+                                    "time": 34,
+                                    "frame": 34,
+                                    "width": 47.1875,
+                                    "height": 50.83333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 48.95833333333333,
+                                    "time": 35,
+                                    "frame": 35,
+                                    "width": 47.1875,
+                                    "height": 50.83333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999999595,
+                                    "y": 48.958333333333314,
+                                    "time": 36,
+                                    "frame": 36,
+                                    "width": 40.9375,
+                                    "height": 50.83333333333331,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "3DitIvdsFA",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk across the hallway"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 0.15624999999999967,
+                                    "y": 0.20833333333333373,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 7.8125,
+                                    "height": 10.833333333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999999967,
+                                    "y": 0.20833333333333373,
+                                    "time": 60,
+                                    "frame": 60,
+                                    "width": 7.8125,
+                                    "height": 10.833333333333334,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "TFZcKwbvr-",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Hallway"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 43.046875,
+                                    "y": 36.45833333333333,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 41.328125,
+                                    "y": 36.45833333333333,
+                                    "time": 52,
+                                    "frame": 52,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 44.921875,
+                                    "y": 36.45833333333333,
+                                    "time": 53,
+                                    "frame": 53,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.109375,
+                                    "y": 36.45833333333333,
+                                    "time": 54,
+                                    "frame": 54,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.015625,
+                                    "y": 36.45833333333333,
+                                    "time": 55,
+                                    "frame": 55,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.953125,
+                                    "y": 36.45833333333333,
+                                    "time": 56,
+                                    "frame": 56,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 47.578125,
+                                    "y": 36.45833333333333,
+                                    "time": 57,
+                                    "frame": 57,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.703125,
+                                    "y": 36.45833333333333,
+                                    "time": 58,
+                                    "frame": 58,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 43.203125,
+                                    "y": 36.45833333333333,
+                                    "time": 59,
+                                    "frame": 59,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.953125,
+                                    "y": 36.45833333333333,
+                                    "time": 60,
+                                    "frame": 60,
+                                    "width": 35,
+                                    "height": 63.33333333333332,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "EWVU02cp4J",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Turn left"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 0.39062499999999967,
+                                    "y": 0.20833333333333315,
+                                    "time": 61,
+                                    "frame": 61,
+                                    "width": 7.03125,
+                                    "height": 9.583333333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.39062499999999967,
+                                    "y": 0.20833333333333315,
+                                    "time": 76,
+                                    "frame": 76,
+                                    "width": 7.03125,
+                                    "height": 9.583333333333334,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "dg3nIwe6fL",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Wait by table next to the kitchen area"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 1.328124999999938,
+                                    "y": 1.5972232818603278,
+                                    "time": 77,
+                                    "frame": 77,
+                                    "width": 5.54687500000003,
+                                    "height": 7.08333333333336,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 1.328124999999938,
+                                    "y": 1.5972232818603278,
+                                    "time": 99,
+                                    "frame": 99,
+                                    "width": 5.54687500000003,
+                                    "height": 7.08333333333336,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "uIEiakGsr8",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Table"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 46.171875,
+                                    "y": 48.958333333333314,
+                                    "time": 77,
+                                    "frame": 77,
+                                    "width": 53.28124999999997,
+                                    "height": 36.45833333333331,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 46.171875,
+                                    "y": 48.333333333333314,
+                                    "time": 78,
+                                    "frame": 78,
+                                    "width": 53.28124999999997,
+                                    "height": 36.45833333333331,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.859375,
+                                    "y": 47.91666666666664,
+                                    "time": 79,
+                                    "frame": 79,
+                                    "width": 53.28124999999997,
+                                    "height": 36.45833333333331,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.390625,
+                                    "y": 47.91666666666664,
+                                    "time": 80,
+                                    "frame": 80,
+                                    "width": 53.59374999999999,
+                                    "height": 36.45833333333331,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 44.45312499999995,
+                                    "y": 48.12499999999999,
+                                    "time": 81,
+                                    "frame": 81,
+                                    "width": 54.53124999999998,
+                                    "height": 30.625000000000014,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 44.58333333333337,
+                                    "y": 48.472222222222236,
+                                    "time": 82,
+                                    "frame": 82,
+                                    "width": 55.260416666666615,
+                                    "height": 30.625000000000018,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 43.85416666666672,
+                                    "y": 48.81944444444447,
+                                    "time": 83,
+                                    "frame": 83,
+                                    "width": 55.98958333333328,
+                                    "height": 30.625000000000018,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.73437499999996,
+                                    "y": 49.16666666666671,
+                                    "time": 84,
+                                    "frame": 84,
+                                    "width": 56.71874999999993,
+                                    "height": 30.625000000000018,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 42.03124999999999,
+                                    "y": 48.541666666666735,
+                                    "time": 85,
+                                    "frame": 85,
+                                    "width": 57.890624999999886,
+                                    "height": 33.75000000000001,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 55.703124999999964,
+                                    "y": 49.16666666666668,
+                                    "time": 86,
+                                    "frame": 86,
+                                    "width": 43.749999999999964,
+                                    "height": 30.62500000000003,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 57.10937500000005,
+                                    "y": 49.37500000000002,
+                                    "time": 87,
+                                    "frame": 87,
+                                    "width": 42.73437499999994,
+                                    "height": 30.62500000000003,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 57.73437499999991,
+                                    "y": 49.16666666666663,
+                                    "time": 88,
+                                    "frame": 88,
+                                    "width": 42.03124999999999,
+                                    "height": 38.54166666666672,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 59.29687499999993,
+                                    "y": 49.16666666666664,
+                                    "time": 89,
+                                    "frame": 89,
+                                    "width": 40.15624999999988,
+                                    "height": 40.833333333333414,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 73.98437499999993,
+                                    "y": 56.45833333333332,
+                                    "time": 90,
+                                    "frame": 90,
+                                    "width": 25.468749999999858,
+                                    "height": 30.624999999999996,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 80.85937499999993,
+                                    "y": 56.45833333333324,
+                                    "time": 91,
+                                    "frame": 91,
+                                    "width": 18.593749999999847,
+                                    "height": 30.624999999999954,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 92.7343749999998,
+                                    "y": 66.24999999999984,
+                                    "time": 92,
+                                    "frame": 92,
+                                    "width": 6.71874999999987,
+                                    "height": 16.666666666666707,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "lGIsx5vWLl",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Kitchen area"
+                            ],
+                            "duration": 99,
+                            "sequence": [
+                                {
+                                    "x": 48.828125,
+                                    "y": 12.291666666666664,
+                                    "time": 77,
+                                    "frame": 77,
+                                    "width": 38.125,
+                                    "height": 52.29166666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 45.234375,
+                                    "y": 21.666666666666664,
+                                    "time": 78,
+                                    "frame": 78,
+                                    "width": 38.125,
+                                    "height": 52.29166666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 41.171875,
+                                    "y": 20.624999999999996,
+                                    "time": 79,
+                                    "frame": 79,
+                                    "width": 38.125,
+                                    "height": 52.29166666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 34.453125,
+                                    "y": 16.875,
+                                    "time": 80,
+                                    "frame": 80,
+                                    "width": 38.125,
+                                    "height": 52.29166666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 34.609375,
+                                    "y": 20.208333333333332,
+                                    "time": 81,
+                                    "frame": 81,
+                                    "width": 38.125,
+                                    "height": 52.29166666666667,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 99
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T08:35:24.983078Z",
+                "updated_at": "2026-03-27T08:35:24.983091Z",
+                "draft_created_at": "2026-03-27T06:48:00.643800Z",
+                "lead_time": 6262.073,
+                "prediction": {},
+                "result_count": 11,
+                "unique_id": "abeacf52-8c52-4768-98e2-2dec00eeef5c",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441841,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 99.0,
+                    "total_frames": 99
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00579_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570782Z",
+        "updated_at": "2026-03-27T08:35:25.027292Z",
+        "inner_id": 180,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
+        "comment_authors": []
+    },
+    {
+        "id": 441843,
+        "annotations": [
+            {
+                "id": 307605,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "QLC00jNYeq",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk to hallway on right"
+                            ],
+                            "duration": 60,
+                            "sequence": [
+                                {
+                                    "x": 0.15625000000000008,
+                                    "y": 0.20833333333333334,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 5,
+                                    "height": 7.083333333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000008,
+                                    "y": 0.20833333333333334,
+                                    "time": 16,
+                                    "frame": 16,
+                                    "width": 5,
+                                    "height": 7.083333333333333,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 60
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "PZij1CMBYs",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Hallway"
+                            ],
+                            "duration": 60,
+                            "sequence": [
+                                {
+                                    "x": 39.765625,
+                                    "y": 48.9583333333333,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 51.171875,
+                                    "y": 57.08333333333334,
+                                    "time": 2,
+                                    "frame": 2,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 67.6141826923077,
+                                    "y": 56.66666666666668,
+                                    "time": 3,
+                                    "frame": 3,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 65.9375,
+                                    "y": 57.08333333333333,
+                                    "time": 4,
+                                    "frame": 4,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 70.53267045454545,
+                                    "y": 57.08333333333333,
+                                    "time": 5,
+                                    "frame": 5,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 73.6278409090909,
+                                    "y": 57.08333333333333,
+                                    "time": 6,
+                                    "frame": 6,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 60.0737058080808,
+                                    "y": 57.08333333333333,
+                                    "time": 7,
+                                    "frame": 7,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 61.61722695707069,
+                                    "y": 57.08333333333333,
+                                    "time": 8,
+                                    "frame": 8,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 66.12949810606061,
+                                    "y": 57.08333333333333,
+                                    "time": 9,
+                                    "frame": 9,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 51.91074810606061,
+                                    "y": 57.08333333333334,
+                                    "time": 10,
+                                    "frame": 10,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 55.13991477272728,
+                                    "y": 56.250000000000014,
+                                    "time": 11,
+                                    "frame": 11,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 63.21283143939394,
+                                    "y": 57.08333333333334,
+                                    "time": 12,
+                                    "frame": 12,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 68.31699810606061,
+                                    "y": 57.08333333333334,
+                                    "time": 13,
+                                    "frame": 13,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 49.82741477272727,
+                                    "y": 57.08333333333334,
+                                    "time": 14,
+                                    "frame": 14,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 37.74408143939394,
+                                    "y": 56.250000000000014,
+                                    "time": 15,
+                                    "frame": 15,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 39.87949810606061,
+                                    "y": 55.41666666666668,
+                                    "time": 16,
+                                    "frame": 16,
+                                    "width": 23.75,
+                                    "height": 42.70833333333333,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 60
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "KqiL9Mlt9X",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Follow hallway and stop in hallway with bathroom to the right"
+                            ],
+                            "duration": 60,
+                            "sequence": [
+                                {
+                                    "x": 0.15625000000000042,
+                                    "y": 0.20833333333333334,
+                                    "time": 17,
+                                    "frame": 17,
+                                    "width": 6.093750000000027,
+                                    "height": 8.541666666666679,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000042,
+                                    "y": 0.20833333333333334,
+                                    "time": 60,
+                                    "frame": 60,
+                                    "width": 6.093750000000027,
+                                    "height": 8.541666666666679,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 60
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "4OYg0Z28kf",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bathroom"
+                            ],
+                            "duration": 60,
+                            "sequence": [
+                                {
+                                    "x": 62.890625,
+                                    "y": 17.5,
+                                    "time": 56,
+                                    "frame": 56,
+                                    "width": 9.0625,
+                                    "height": 82.29166666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 66.48437499999997,
+                                    "y": 17.49999999999997,
+                                    "time": 57,
+                                    "frame": 57,
+                                    "width": 13.43750000000004,
+                                    "height": 82.29166666666653,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 69.60937499999986,
+                                    "y": 17.500000000000135,
+                                    "time": 58,
+                                    "frame": 58,
+                                    "width": 25.156250000000135,
+                                    "height": 82.2916666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 73.51562499999986,
+                                    "y": 17.500000000000288,
+                                    "time": 59,
+                                    "frame": 59,
+                                    "width": 25.156250000000135,
+                                    "height": 82.2916666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 78.28124999999983,
+                                    "y": 17.0833333333336,
+                                    "time": 60,
+                                    "frame": 60,
+                                    "width": 21.562500000000135,
+                                    "height": 82.29166666666633,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 60
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T09:36:25.777627Z",
+                "updated_at": "2026-03-27T09:36:25.777638Z",
+                "draft_created_at": "2026-03-27T08:39:29.843290Z",
+                "lead_time": 3150.515,
+                "prediction": {},
+                "result_count": 4,
+                "unique_id": "9c164bf4-cbf4-4652-b40b-754471d51c1b",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441843,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 60.0,
+                    "total_frames": 60
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00581_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570828Z",
+        "updated_at": "2026-03-27T09:36:25.824578Z",
+        "inner_id": 182,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
+        "comment_authors": []
+    },
+    {
+        "id": 441847,
+        "annotations": [
+            {
+                "id": 307723,
+                "completed_by": 514,
+                "result": [
+                    {
+                        "id": "iN_Jw86-xX",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Walk in front of the bed and through an archway"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 1,
+                                    "frame": 1,
+                                    "width": 6.875000000000001,
+                                    "height": 8.333333333333332,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 38,
+                                    "frame": 38,
+                                    "width": 6.875000000000001,
+                                    "height": 8.333333333333332,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "4-Lm7R_eDj",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Bed"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 0.15624999999999967,
+                                    "y": 60.83333333333335,
+                                    "time": 7,
+                                    "frame": 7,
+                                    "width": 31.093749999999996,
+                                    "height": 38.958333333333286,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000938,
+                                    "y": 45.72916666666675,
+                                    "time": 8,
+                                    "frame": 8,
+                                    "width": 46.09374999999997,
+                                    "height": 54.06249999999996,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000094,
+                                    "y": 46.66666666666664,
+                                    "time": 9,
+                                    "frame": 9,
+                                    "width": 44.84375,
+                                    "height": 53.125000000000064,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999998643,
+                                    "y": 50.93749999999997,
+                                    "time": 10,
+                                    "frame": 10,
+                                    "width": 44.21875000000001,
+                                    "height": 48.85416666666667,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000001596,
+                                    "y": 38.95833333333334,
+                                    "time": 11,
+                                    "frame": 11,
+                                    "width": 58.281249999999986,
+                                    "height": 60.83333333333315,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999998584,
+                                    "y": 41.04166666666676,
+                                    "time": 12,
+                                    "frame": 12,
+                                    "width": 60.9375,
+                                    "height": 58.74999999999997,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15624999999999026,
+                                    "y": 44.16666666666666,
+                                    "time": 13,
+                                    "frame": 13,
+                                    "width": 61.718750000000014,
+                                    "height": 55.62500000000009,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.156249999999994,
+                                    "y": 58.95833333333332,
+                                    "time": 14,
+                                    "frame": 14,
+                                    "width": 48.59374999999999,
+                                    "height": 40.83333333333326,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000538,
+                                    "y": 72.2916666666667,
+                                    "time": 15,
+                                    "frame": 15,
+                                    "width": 32.96875,
+                                    "height": 27.500000000000014,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000736,
+                                    "y": 80.625,
+                                    "time": 16,
+                                    "frame": 16,
+                                    "width": 27.81249999999999,
+                                    "height": 19.166666666666696,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "oJMEDrfQAY",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:Turn left down a hallway"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333298,
+                                    "time": 39,
+                                    "frame": 39,
+                                    "width": 5.46875,
+                                    "height": 9.583333333333334,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333298,
+                                    "time": 52,
+                                    "frame": 52,
+                                    "width": 5.46875,
+                                    "height": 9.583333333333334,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "MhZ6Z3b7Tn",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Hallway"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 1.953125000000005,
+                                    "y": 39.58333333333325,
+                                    "time": 44,
+                                    "frame": 44,
+                                    "width": 32.031250000000014,
+                                    "height": 60.416666666666444,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625000000000056,
+                                    "y": 39.37500000000023,
+                                    "time": 45,
+                                    "frame": 45,
+                                    "width": 32.031250000000014,
+                                    "height": 60.416666666666444,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 13.437499999999966,
+                                    "y": 41.25000000000022,
+                                    "time": 46,
+                                    "frame": 46,
+                                    "width": 32.34375000000006,
+                                    "height": 58.33333333333314,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 10.234374999999964,
+                                    "y": 41.45833333333355,
+                                    "time": 47,
+                                    "frame": 47,
+                                    "width": 32.34375000000006,
+                                    "height": 58.33333333333314,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 22.499999999999964,
+                                    "y": 41.45833333333355,
+                                    "time": 48,
+                                    "frame": 48,
+                                    "width": 32.34375000000006,
+                                    "height": 58.33333333333314,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 21.406249999999964,
+                                    "y": 41.458333333333556,
+                                    "time": 49,
+                                    "frame": 49,
+                                    "width": 32.34375000000006,
+                                    "height": 58.33333333333314,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 24.296874999999957,
+                                    "y": 42.08333333333357,
+                                    "time": 50,
+                                    "frame": 50,
+                                    "width": 27.500000000000064,
+                                    "height": 57.708333333333094,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 20.937499999999947,
+                                    "y": 41.66666666666689,
+                                    "time": 51,
+                                    "frame": 51,
+                                    "width": 22.65625000000007,
+                                    "height": 57.083333333333066,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 20.624999999999947,
+                                    "y": 41.66666666666689,
+                                    "time": 52,
+                                    "frame": 52,
+                                    "width": 22.65625000000007,
+                                    "height": 57.08333333333307,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "q0EShcL7UT",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "subtask:To a reading nook to the right with a fireplace and wait"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 53,
+                                    "frame": 53,
+                                    "width": 7.656250000000001,
+                                    "height": 9.791666666666666,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 0.15625,
+                                    "y": 0.20833333333333334,
+                                    "time": 62,
+                                    "frame": 62,
+                                    "width": 7.656250000000001,
+                                    "height": 9.791666666666666,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    },
+                    {
+                        "id": "uVYjWJki1i",
+                        "type": "videorectangle",
+                        "value": {
+                            "labels": [
+                                "object:Fireplace"
+                            ],
+                            "duration": 62,
+                            "sequence": [
+                                {
+                                    "x": 76.484375,
+                                    "y": 50.416666666666664,
+                                    "time": 54,
+                                    "frame": 54,
+                                    "width": 13.593749999999998,
+                                    "height": 48.541666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 81.953125,
+                                    "y": 51.24999999999999,
+                                    "time": 55,
+                                    "frame": 55,
+                                    "width": 13.593749999999998,
+                                    "height": 48.541666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 86.25,
+                                    "y": 51.041666666666664,
+                                    "time": 56,
+                                    "frame": 56,
+                                    "width": 13.593749999999998,
+                                    "height": 48.541666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 72.65625,
+                                    "y": 51.24999999999999,
+                                    "time": 57,
+                                    "frame": 57,
+                                    "width": 13.593749999999998,
+                                    "height": 48.541666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 78.59375,
+                                    "y": 51.24999999999999,
+                                    "time": 58,
+                                    "frame": 58,
+                                    "width": 13.593749999999998,
+                                    "height": 48.541666666666664,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 87.18750000000036,
+                                    "y": 55.208333333333336,
+                                    "time": 59,
+                                    "frame": 59,
+                                    "width": 12.656249999999652,
+                                    "height": 39.58333333333307,
+                                    "enabled": true,
+                                    "rotation": 0
+                                },
+                                {
+                                    "x": 86.40625000000036,
+                                    "y": 55.208333333333336,
+                                    "time": 61,
+                                    "frame": 61,
+                                    "width": 12.656249999999652,
+                                    "height": 39.58333333333307,
+                                    "enabled": false,
+                                    "rotation": 0
+                                }
+                            ],
+                            "framesCount": 62
+                        },
+                        "origin": "manual",
+                        "to_name": "video",
+                        "from_name": "box"
+                    }
+                ],
+                "was_cancelled": false,
+                "ground_truth": false,
+                "created_at": "2026-03-27T10:17:05.904901Z",
+                "updated_at": "2026-03-27T10:17:05.904912Z",
+                "draft_created_at": "2026-03-27T09:51:43.528480Z",
+                "lead_time": 1356.388,
+                "prediction": {},
+                "result_count": 6,
+                "unique_id": "7a1b4ed7-cd7a-40c5-a365-e863b3430a49",
+                "import_id": null,
+                "last_action": null,
+                "bulk_created": false,
+                "task": 441847,
+                "project": 2577,
+                "updated_by": 514,
+                "parent_prediction": null,
+                "parent_annotation": null,
+                "last_created_by": null
+            }
+        ],
+        "drafts": [],
+        "predictions": [],
+        "data": {
+            "meta": {
+                "gengshuang_3_H.264": {
+                    "fps": 1.0,
+                    "codec": "h264",
+                    "width": 640,
+                    "height": 480,
+                    "duration": 62.0,
+                    "total_frames": 62
+                }
+            },
+            "gengshuang_3_H.264": "https:\/\/baai-eai-datasets.ks3-cn-beijing.ksyuncs.com\/data\/gengshuang\/gengshuang_3_H.264\/ep00585_h264.mp4"
+        },
+        "meta": {},
+        "created_at": "2026-03-24T07:56:35.570921Z",
+        "updated_at": "2026-03-27T10:17:05.954012Z",
+        "inner_id": 186,
+        "total_annotations": 1,
+        "cancelled_annotations": 0,
+        "total_predictions": 0,
+        "comment_count": 0,
+        "unresolved_comment_count": 0,
+        "last_comment_updated_at": null,
+        "x_status": "ANNOTATED",
+        "project": 2577,
+        "updated_by": 514,
         "comment_authors": []
     }
 ]

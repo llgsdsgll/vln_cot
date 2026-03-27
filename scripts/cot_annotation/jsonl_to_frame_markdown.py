@@ -67,6 +67,8 @@ def build_markdown(
     episode_id: int,
     frame_number: int,
     image_path: str | None,
+    history_memory_input: str | None,
+    history_source_frame: int | None,
     assistant_content: str,
     prompt_text: str | None,
     include_prompt: bool,
@@ -80,6 +82,11 @@ def build_markdown(
 
     if image_path:
         lines.append(f"- Image Path: `{image_path}`")
+
+    if history_memory_input is not None:
+        lines.append(f'- Historical Memory Input: "{history_memory_input}"')
+    if history_source_frame is not None:
+        lines.append(f"- History Source Frame: {history_source_frame}")
 
     lines.extend(
         [
@@ -144,8 +151,11 @@ def main() -> None:
             episode_id = int(record["episode_id"])
             frame_number = int(record["frame"])
             messages = record.get("messages", [])
+            input_state = record.get("input_state", {})
             image_path, prompt_text = format_user_prompt(messages)
             assistant_content = get_assistant_content(messages)
+            history_memory_input = input_state.get("historical_trajectory_memory")
+            history_source_frame = input_state.get("history_source_frame")
 
             filename = f"ep{episode_id:05d}_frame{frame_number:04d}.md"
             md_path = output_dir / filename
@@ -154,6 +164,8 @@ def main() -> None:
                     episode_id=episode_id,
                     frame_number=frame_number,
                     image_path=image_path,
+                    history_memory_input=history_memory_input,
+                    history_source_frame=history_source_frame,
                     assistant_content=assistant_content,
                     prompt_text=prompt_text,
                     include_prompt=args.include_prompt,

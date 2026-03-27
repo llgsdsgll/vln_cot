@@ -9,15 +9,17 @@ RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 DEFAULT_TRAIN_FILE = Path("/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train.json")
 DEFAULT_RAW_INPUT_FILES = [
+    RAW_DATA_DIR / "gengshuang_2_H.264.json",
     RAW_DATA_DIR / "gengshuang_3_H.264.json",
+    RAW_DATA_DIR / "gengshuang_4_H.264.json",
     RAW_DATA_DIR / "gengshuang_5_H.264.json",
 ]
 DEFAULT_PROCESSED_INPUT_FILE = PROCESSED_DATA_DIR / "gengshuang_1_H.264_0324_processed.json"
-DEFAULT_OUTPUT_FILE = PROCESSED_DATA_DIR / "merged_annotations.json"
-DEFAULT_ERROR_FILE = PROCESSED_DATA_DIR / "merged_annotations_errors.txt"
+DEFAULT_OUTPUT_FILE = PROCESSED_DATA_DIR / "merged_annotations_0327.json"
+DEFAULT_ERROR_FILE = PROCESSED_DATA_DIR / "merged_annotations_errors_0327.txt"
 
 def extract_episode_id(url):
-    match = re.search(r'ep(\d+)', url)
+    match = re.search(r'ep(\d+)', url)  
     return int(match.group(1)) if match else None
 
 def load_instructions(train_json_path):

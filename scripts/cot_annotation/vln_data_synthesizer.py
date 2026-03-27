@@ -41,6 +41,7 @@ import logging
 import os
 import re
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
@@ -66,12 +67,13 @@ Required keys:
 Rules:
 1. Use only the provided ground-truth state and the current image. Do not hallucinate.
 2. Keep each text field concise: 1-2 sentences only.
-3. Summarize the trajectory memory instead of copying every past step verbatim.
+3. Treat the Historical Trajectory Memory as the memory anchor carried from the previous frame. Use it as immediate past context instead of listing all past actions.
 4. Write actual reasoning content, not meta-instructions or copied placeholders.
 5. `step2_spatial_perception` should describe the target's relative screen position and visible appearance; the exact object name and bbox will be inserted programmatically.
 6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
-7. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
-8. Do not output Markdown, code fences, comments, or any extra keys.
+7. `step4_memory_update` must be exactly one concise sentence that can be reused as the next frame's Historical Trajectory Memory.
+8. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+9. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -111,12 +113,13 @@ Required keys:
 Rules:
 1. Use only the provided ground-truth state and the current image. Do not hallucinate.
 2. Keep each text field concise: 1-2 sentences only.
-3. Summarize the trajectory memory instead of copying every past step verbatim.
+3. Treat the Historical Trajectory Memory as the memory anchor carried from the previous frame. Use it as immediate past context instead of listing all past actions.
 4. Write actual reasoning content, not meta-instructions or copied placeholders.
 5. `step2_spatial_perception` must explicitly state that the target is not visible in the current frame and must not invent a bounding box.
 6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
-7. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
-8. Do not output Markdown, code fences, comments, or any extra keys.
+7. `step4_memory_update` must be exactly one concise sentence that can be reused as the next frame's Historical Trajectory Memory.
+8. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+9. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -237,10 +240,27 @@ class StructuredTeacherTrace(BaseModel):
         ):
             raise ValueError("step3 must mention the chosen action")
 
+        if action_mentions and not any(
+            mention in self.step4_memory_update.lower() for mention in action_mentions
+        ):
+            raise ValueError("step4 must mention the chosen action")
+
+        sentence_endings = re.findall(r"[.!?](?:\s|$)", self.step4_memory_update)
+        if len(sentence_endings) > 1:
+            raise ValueError("step4 should be one concise sentence")
+
         return self
 
 
 STRUCTURED_TRACE_JSON_SCHEMA = StructuredTeacherTrace.model_json_schema()
+
+
+@dataclass(frozen=True)
+class FrameGenerationResult:
+    """单帧生成结果。"""
+
+    assistant_content: str
+    memory_update: str
 
 # ---------------------------------------------------------------------------
 # 日志配置
@@ -407,22 +427,43 @@ class VLNDataSynthesizer:
         return [xmin, ymin, xmax, ymax]
 
     @staticmethod
-    def update_script_memory(
-        script_memory: list[str],
-        frame_idx: int,
-        action_str: str,
-    ) -> None:
-        """
-        将本步骤的真值动作追加到历史记忆列表（in-place 修改）。
+    def _format_history_memory_input(history_memory: Optional[str]) -> str:
+        """将历史记忆锚点格式化为 prompt / JSON 可用的字符串。"""
+        if history_memory is None:
+            return "None"
+        text = collapse_whitespace(history_memory)
+        return text if text else "None"
 
-        使用真值动作维护历史，防止模型幻觉在步骤间累积。
-
-        Args:
-            script_memory: 存储历史动作文本的列表（将被修改）。
-            frame_idx:      当前帧序号（1-indexed）。
-            action_str:     当前帧执行的动作字符串（如 ``"MOVE_FORWARD"``）。
+    def _build_memory_anchor(
+        self,
+        frame_data: dict[str, Any],
+        next_action: str,
+        preferred_text: Optional[str] = None,
+    ) -> str:
         """
-        script_memory.append(f"Step {frame_idx}: Executed {action_str}.")
+        生成可传递到下一帧的历史记忆锚点。
+
+        优先使用模型生成的 `step4_memory_update`；若当前帧失败，则回退到基于真值构造的
+        单句摘要，保证历史链不断开。
+        """
+        if preferred_text:
+            return self._format_history_memory_input(preferred_text)
+
+        action_phrase = self._action_phrase(next_action)
+        objects = frame_data.get("objects", [])
+        if objects:
+            obj = objects[0]
+            target_name = obj["label"]
+            bbox_norm = self.normalize_bbox(obj["bbox"])
+            position = self._relative_position_from_bbox(bbox_norm)
+            return (
+                f"In this step, I observed the '{target_name}' in the {position} and "
+                f"decided to {action_phrase} for the current sub-task."
+            )
+        return (
+            f"In this step, the target was not visible, so I decided to {action_phrase} "
+            f"to continue the current sub-task."
+        )
 
     @staticmethod
     def _relative_position_from_bbox(bbox_norm: list[int]) -> str:
@@ -567,15 +608,35 @@ class VLNDataSynthesizer:
             f"{next_action}"
         )
 
-    def _build_template_response(
+    def _result_from_structured_trace(
+        self,
+        structured_trace: StructuredTeacherTrace,
+        frame_data: dict[str, Any],
+        next_action: str,
+    ) -> FrameGenerationResult:
+        """将结构化思维链转为最终字符串和下一帧历史记忆锚点。"""
+        return FrameGenerationResult(
+            assistant_content=self._render_structured_response(
+                structured_trace=structured_trace,
+                frame_data=frame_data,
+                next_action=next_action,
+            ),
+            memory_update=self._build_memory_anchor(
+                frame_data=frame_data,
+                next_action=next_action,
+                preferred_text=structured_trace.step4_memory_update,
+            ),
+        )
+
+    def _build_template_result(
         self,
         frame_data: dict[str, Any],
-        script_memory: list[str],
+        history_memory: Optional[str],
         global_instruction: str,
         global_subtasks: list[str],
         completed_index: int,
         next_action: str,
-    ) -> str:
+    ) -> FrameGenerationResult:
         """当模型多次返回不合格时，使用真值信息生成严格合规的兜底答案。"""
         current_subtask, completed_subtasks_str = self._build_current_task_state(
             frame_data=frame_data,
@@ -584,10 +645,11 @@ class VLNDataSynthesizer:
             completed_index=completed_index,
         )
         action_phrase = self._action_phrase(next_action)
+        history_memory_input = self._format_history_memory_input(history_memory)
         memory_clause = (
-            f"The memory shows {len(script_memory)} completed action steps so far."
-            if script_memory
-            else "The memory is still empty at this step."
+            f'The previous memory anchor is "{history_memory_input}".'
+            if history_memory_input != "None"
+            else "There is no previous memory anchor at this step."
         )
 
         if completed_subtasks_str == "[]":
@@ -606,12 +668,8 @@ class VLNDataSynthesizer:
             obj = objects[0]
             target_name = obj["label"]
             bbox_norm = self.normalize_bbox(obj["bbox"])
-            bbox_str = str(bbox_norm)
             position = self._relative_position_from_bbox(bbox_norm)
-            step2 = (
-                f"I see the '{target_name}' at the exact bounding box {bbox_str}. "
-                f"It is in the {position}."
-            )
+            step2 = f"It is in the {position}."
             if next_action == "MOVE_FORWARD":
                 step3 = (
                     f"The target is already visible in front of the agent, so move forward "
@@ -633,7 +691,7 @@ class VLNDataSynthesizer:
                     f"is the correct action now."
                 )
             step4 = (
-                f"This step observes the '{target_name}' at {bbox_str} and decides to "
+                f"This step observes the '{target_name}' in the {position} and decides to "
                 f"{action_phrase} for the current sub-task."
             )
         else:
@@ -653,20 +711,28 @@ class VLNDataSynthesizer:
                 f"to maintain progress."
             )
 
-        return (
-            "**Reasoning Process:**\n"
-            f"Step 1: Task Progress. {step1}\n"
-            f"Step 2: Spatial Perception. {step2}\n"
-            f"Step 3: Decision Logic. {step3}\n"
-            f"Step 4: Memory Update. {step4}\n\n"
-            "**Final Action:**\n"
-            f"{next_action}"
+        structured_trace = StructuredTeacherTrace.model_validate(
+            {
+                "step1_task_progress": step1,
+                "step2_spatial_perception": step2,
+                "step3_decision_logic": step3,
+                "step4_memory_update": step4,
+            },
+            context={
+                "target_visible": bool(objects),
+                "action_mentions": self._action_mentions(next_action),
+            },
+        )
+        return self._result_from_structured_trace(
+            structured_trace=structured_trace,
+            frame_data=frame_data,
+            next_action=next_action,
         )
 
     def build_prompt(
         self,
         frame_data: dict[str, Any],
-        script_memory: list[str],
+        history_memory: Optional[str],
         global_instruction: str,
         global_subtasks: list[str],
         completed_index: int,
@@ -680,7 +746,7 @@ class VLNDataSynthesizer:
 
         Args:
             frame_data:        processed.json 中单帧的字典数据。
-            script_memory:     截至上一步的历史动作文本列表。
+            history_memory:    来自上一帧的历史记忆锚点。
             global_instruction: 当前 episode 的全局导航指令。
             global_subtasks:   当前 episode 的子任务列表（有序、去重）。
             completed_index:   当前子任务在列表中的索引（之前的均已完成）。
@@ -689,7 +755,7 @@ class VLNDataSynthesizer:
         Returns:
             填充完毕的 prompt 字符串，可直接传给 VLM API。
         """
-        memory_str = " ".join(script_memory) if script_memory else "None"
+        memory_str = self._format_history_memory_input(history_memory)
         subtasks_str = str(global_subtasks)
         current_subtask, completed_subtasks_str = self._build_current_task_state(
             frame_data=frame_data,
@@ -772,12 +838,12 @@ class VLNDataSynthesizer:
         prompt: str,
         image_b64: Optional[str],
         frame_data: dict[str, Any],
-        script_memory: list[str],
+        history_memory: Optional[str],
         global_instruction: str,
         global_subtasks: list[str],
         completed_index: int,
         next_action: str,
-    ) -> Optional[str]:
+    ) -> Optional[FrameGenerationResult]:
         # 构建 user message content：图像（若有）+ 文本
         user_content: list[dict[str, Any]]
         if image_b64 is not None:
@@ -838,10 +904,10 @@ class VLNDataSynthesizer:
                     next_action=next_action,
                 )
                 if structured_trace is not None:
-                    return self._render_structured_response(
-                        structured_trace,
-                        frame_data,
-                        next_action,
+                    return self._result_from_structured_trace(
+                        structured_trace=structured_trace,
+                        frame_data=frame_data,
+                        next_action=next_action,
                     )
 
                 saw_invalid_response = True
@@ -910,9 +976,9 @@ class VLNDataSynthesizer:
         if saw_invalid_response:
             if self.invalid_frame_policy == "template":
                 logger.warning("多次生成后仍不合格，按策略改用模板兜底。")
-                return self._build_template_response(
+                return self._build_template_result(
                     frame_data=frame_data,
-                    script_memory=script_memory,
+                    history_memory=history_memory,
                     global_instruction=global_instruction,
                     global_subtasks=global_subtasks,
                     completed_index=completed_index,
@@ -944,7 +1010,8 @@ class VLNDataSynthesizer:
         )
         os.makedirs(frames_dir, exist_ok=True)
 
-        script_memory: list[str] = []
+        history_memory: Optional[str] = None
+        history_source_frame: Optional[int] = None
         success_count = 0
 
         for frame_data in frames:
@@ -959,6 +1026,8 @@ class VLNDataSynthesizer:
 
             action_code: int = gt_actions[action_idx]
             next_action: str = ACTION_MAP.get(action_code, f"UNKNOWN_{action_code}")
+            history_memory_input = self._format_history_memory_input(history_memory)
+            generation_result: Optional[FrameGenerationResult] = None
 
             # 帧级兜底：任何未预期异常只跳过本帧，不崩溃整个进程
             try:
@@ -980,25 +1049,25 @@ class VLNDataSynthesizer:
 
                 prompt = self.build_prompt(
                     frame_data=frame_data,
-                    script_memory=script_memory,
+                    history_memory=history_memory,
                     global_instruction=instruction,
                     global_subtasks=global_subtasks,
                     completed_index=completed_index,
                     next_action=next_action,
                 )
 
-                formatted_response = self.call_vlm_api(
+                generation_result = self.call_vlm_api(
                     prompt=prompt,
                     image_b64=image_b64,
                     frame_data=frame_data,
-                    script_memory=script_memory,
+                    history_memory=history_memory,
                     global_instruction=instruction,
                     global_subtasks=global_subtasks,
                     completed_index=completed_index,
                     next_action=next_action,
                 )
 
-                if formatted_response is None:
+                if generation_result is None:
                     logger.error("episode %d frame %d VLM 调用失败，跳过", episode_id, frame_number)
                     continue
 
@@ -1015,9 +1084,13 @@ class VLNDataSynthesizer:
                 record: dict[str, Any] = {
                     "episode_id": episode_id,
                     "frame": frame_number,
+                    "input_state": {
+                        "historical_trajectory_memory": history_memory_input,
+                        "history_source_frame": history_source_frame,
+                    },
                     "messages": [
                         {"role": "user", "content": user_content},
-                        {"role": "assistant", "content": formatted_response},
+                        {"role": "assistant", "content": generation_result.assistant_content},
                     ],
                 }
 
@@ -1033,8 +1106,19 @@ class VLNDataSynthesizer:
                     episode_id, frame_number, type(exc).__name__, exc,
                 )
             finally:
-                # 无论成功或失败，始终用真值更新记忆，保证后续帧历史不断链
-                self.update_script_memory(script_memory, frame_number, next_action)
+                # 无论成功或失败，都为下一帧生成一个历史记忆锚点，保证链不断开。
+                if generation_result is not None:
+                    history_memory = self._build_memory_anchor(
+                        frame_data=frame_data,
+                        next_action=next_action,
+                        preferred_text=generation_result.memory_update,
+                    )
+                else:
+                    history_memory = self._build_memory_anchor(
+                        frame_data=frame_data,
+                        next_action=next_action,
+                    )
+                history_source_frame = frame_number
 
         return success_count
 

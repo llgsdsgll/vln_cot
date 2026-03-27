@@ -1,0 +1,4 @@
+Episode 1020: subtask 'Turn right into the bedroom' 不在原始指令中
+Episode 1174: subtask 'Go towards the room labebled spaces' 不在原始指令中
+Episode 1174: object 'Room labeled spaces' 不在原始指令中
+Episode 1177: subtask 'Turn right' 不在原始指令中
