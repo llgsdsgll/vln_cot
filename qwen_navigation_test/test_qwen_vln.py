@@ -8,11 +8,14 @@ import argparse
 import base64
 import json
 import os
+import re
+import time
+from urllib import request
 from collections import defaultdict
 
 import cv2
 import numpy as np
-import requests
+import openai
 import torch
 from habitat import Env, logger
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
@@ -36,35 +39,145 @@ SYSTEM_PROMPT = (
     "Reply with only the action word, nothing else."
 )
 
+LOCAL_API_BASE_URL = "http://127.0.0.1:8000/v1"
+LOCAL_MODEL_DISCOVERY_URL = "http://localhost:8000/v1/models"
+DASHSCOPE_API_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DASHSCOPE_MODEL_NAME = "qwen3.5-plus"
+API_PROVIDER_CHOICES = ("local", "dashscope")
+THINKING_MODE_CHOICES = ("auto", "on", "off")
+
 
 class QwenNavigationAgent:
-    """Qwen3.5 导航智能体，通过 vLLM HTTP 接口调用模型"""
+    """Qwen 导航智能体，支持本地 Habitat + 远端 OpenAI 兼容多模态接口。"""
 
-    def __init__(self, server_url="http://0.0.0.0:8000", model_name=None):
+    def __init__(
+        self,
+        api_provider="local",
+        api_base_url=None,
+        model_name=None,
+        api_key=None,
+        api_key_env="DASHSCOPE_API_KEY",
+        thinking_mode="off",
+        max_retries=3,
+    ):
         """
-        初始化 vLLM 客户端（使用 requests 直接调用 OpenAI 兼容 HTTP 接口）
+        初始化多模态 LLM 客户端。
 
         Args:
-            server_url: vLLM 服务地址，默认 http://0.0.0.0:8000
-            model_name: 模型名称，若为 None 则自动从服务端查询
+            api_provider: 接口提供方类型。local 表示自部署 OpenAI 兼容接口；
+                dashscope 表示阿里云百炼兼容接口。
+            api_base_url: OpenAI 兼容接口地址。既支持 http://host:port，
+                也支持完整的 http://host:port/v1。
+            model_name: 模型名称。local 默认自动探测，dashscope 默认 qwen3.5-plus。
+            api_key: 显式传入 API Key。
+            api_key_env: 当 provider 需要鉴权时，读取 API Key 的环境变量名。
+            thinking_mode: thinking 模式开关，参考 vln_data_synthesizer.py。
+            max_retries: 请求失败时的最大重试次数。
         """
-        self.base_url = server_url.rstrip("/") + "/v1"
-        self.headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer token-abc123",  # vLLM 不校验 key，填任意非空字符串即可
-        }
+        if api_provider not in API_PROVIDER_CHOICES:
+            raise ValueError("unsupported api_provider: {}".format(api_provider))
+        if thinking_mode not in THINKING_MODE_CHOICES:
+            raise ValueError("unsupported thinking_mode: {}".format(thinking_mode))
+        if max_retries < 1:
+            raise ValueError("max_retries must be >= 1")
 
-        # 自动获取模型名称（vLLM 部署时模型名即为路径或别名）
-        if model_name is None:
-            resp = requests.get(f"{self.base_url}/models", headers=self.headers, timeout=30)
-            resp.raise_for_status()
-            self.model_name = resp.json()["data"][0]["id"]
-        else:
-            self.model_name = model_name
-
+        self.api_provider = api_provider
+        self.api_key_env = api_key_env
+        self.thinking_mode = thinking_mode
+        self.max_retries = max_retries
+        self.base_url = self._resolve_api_base_url(api_provider, api_base_url)
+        self._client = openai.OpenAI(
+            api_key=self._resolve_api_key(
+                api_provider=api_provider,
+                api_key=api_key,
+                api_key_env=api_key_env,
+            ),
+            base_url=self.base_url,
+        )
+        self.model_name = self._resolve_model_name(model_name)
         self.actions = list(ACTION_MAP.keys())
         self.step_count = 0
-        logger.info("Connected to vLLM server at {}, model: {}".format(server_url, self.model_name))
+        logger.info(
+            "Connected navigation agent | provider=%s | base_url=%s | model=%s | thinking_mode=%s",
+            self.api_provider,
+            self.base_url,
+            self.model_name,
+            self.thinking_mode,
+        )
+
+    @staticmethod
+    def _resolve_api_base_url(api_provider, api_base_url):
+        """根据 provider 解析并规范化 OpenAI 兼容接口地址。"""
+        if api_base_url:
+            base_url = api_base_url.rstrip("/")
+        elif api_provider == "dashscope":
+            base_url = DASHSCOPE_API_BASE_URL
+        else:
+            base_url = LOCAL_API_BASE_URL
+
+        if base_url.endswith("/v1"):
+            return base_url
+        return base_url + "/v1"
+
+    @staticmethod
+    def _resolve_api_key(api_provider, api_key, api_key_env):
+        """根据 provider 解析 API Key。"""
+        if api_key:
+            return api_key
+        env_value = os.getenv(api_key_env)
+        if env_value:
+            return env_value
+        if api_provider == "local":
+            return "EMPTY"
+        raise ValueError(
+            "provider={} requires an API key. Set {} or pass --api-key.".format(
+                api_provider,
+                api_key_env,
+            )
+        )
+
+    def _resolve_model_name(self, model_name):
+        """解析模型名；local 未显式指定时固定从 localhost 模型列表探测。"""
+        if model_name:
+            return model_name
+        if self.api_provider == "dashscope":
+            return DASHSCOPE_MODEL_NAME
+
+        try:
+            with request.urlopen(LOCAL_MODEL_DISCOVERY_URL, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            models = payload.get("data") or []
+            if models and models[0].get("id"):
+                return models[0]["id"]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to auto-detect model from %s: %s",
+                LOCAL_MODEL_DISCOVERY_URL,
+                exc,
+            )
+
+        raise ValueError(
+            "Cannot auto-detect model from {}. Please pass --model explicitly.".format(
+                LOCAL_MODEL_DISCOVERY_URL
+            )
+        )
+
+    def _build_request_extra_body(self):
+        """参考 vln_data_synthesizer.py 构造 provider 相关扩展参数。"""
+        if self.api_provider == "dashscope":
+            extra_body = {}
+        else:
+            extra_body = {"repetition_penalty": 1.01}
+
+        if self.thinking_mode == "auto":
+            return extra_body
+
+        enable_thinking = self.thinking_mode == "on"
+        if self.api_provider == "dashscope":
+            extra_body["enable_thinking"] = enable_thinking
+        else:
+            extra_body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
+        return extra_body
 
     def _build_prompt(self, instruction):
         """构建发送给 Qwen3.5 的文本提示词"""
@@ -93,15 +206,107 @@ class QwenNavigationAgent:
         b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
         return "data:image/jpeg;base64," + b64
 
+    @staticmethod
+    def _extract_response_text(response):
+        """兼容字符串或分片结构的 message.content。"""
+        content = response.choices[0].message.content
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+
+        chunks = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text" and part.get("text"):
+                    chunks.append(part["text"])
+            else:
+                text = getattr(part, "text", None)
+                if text:
+                    chunks.append(text)
+        return "\n".join(chunks).strip()
+
     def _parse_action(self, response_text):
         """将模型输出文本解析为 HabitatSimActions"""
         text = response_text.strip().lower()
-        for key, action in ACTION_MAP.items():
-            if key in text:
-                return action
+        if text in ACTION_MAP:
+            return ACTION_MAP[text]
+
+        matches = re.findall(r"\b(stop|forward|left|right)\b", text)
+        if matches:
+            return ACTION_MAP[matches[-1]]
+
         # 无法解析时默认前进，避免提前停止
         logger.warning(f"Cannot parse action from: '{response_text}', defaulting to MOVE_FORWARD")
         return HabitatSimActions.MOVE_FORWARD
+
+    def _request_action(self, prompt, image_data_uri):
+        """调用远端多模态 LLM，返回原始文本。"""
+        user_content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": image_data_uri},
+            },
+            {
+                "type": "text",
+                "text": prompt,
+            },
+        ]
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
+
+        last_error = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = self._client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    max_tokens=32,
+                    temperature=0.0,
+                    top_p=1.0,
+                    extra_body=self._build_request_extra_body(),
+                )
+                return self._extract_response_text(response)
+
+            except openai.BadRequestError as exc:
+                last_error = exc
+                logger.warning(
+                    "VLM request is invalid (attempt %d/%d): %s",
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+            except openai.APIConnectionError as exc:
+                last_error = exc
+                logger.warning(
+                    "VLM connection failed (attempt %d/%d): %s",
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+            except openai.RateLimitError as exc:
+                last_error = exc
+                logger.warning(
+                    "VLM rate limited (attempt %d/%d): %s",
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                logger.warning(
+                    "VLM request failed unexpectedly (attempt %d/%d): %s",
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+
+            if attempt < self.max_retries:
+                time.sleep(2 ** attempt)
+
+        raise RuntimeError("LLM request failed after {} attempts: {}".format(self.max_retries, last_error))
 
     def act(self, observations, instruction):
         """
@@ -120,35 +325,7 @@ class QwenNavigationAgent:
         rgb_obs = observations["rgb"]  # shape: (H, W, 3), dtype: uint8
         image_data_uri = self._encode_rgb(rgb_obs)
 
-        # 构建多模态消息：图像 + 文本
-        user_content = [
-            {
-                "type": "image_url",
-                "image_url": {"url": image_data_uri},
-            },
-            {
-                "type": "text",
-                "text": prompt,
-            },
-        ]
-
-        payload = {
-            "model": self.model_name,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_content},
-            ],
-            "max_tokens": 16,
-            "temperature": 0.0,  # 贪心解码，保证可复现
-        }
-        resp = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers=self.headers,
-            json=payload,
-            timeout=60,
-        )
-        resp.raise_for_status()
-        response_text = resp.json()["choices"][0]["message"]["content"]
+        response_text = self._request_action(prompt, image_data_uri)
         action = self._parse_action(response_text)
 
         self.step_count += 1
@@ -266,16 +443,52 @@ def main():
         help="Path to VLN-CE config file"
     )
     parser.add_argument(
-        "--server-url",
+        "--api-provider",
         type=str,
-        default="http://0.0.0.0:8000",
-        help="vLLM server URL"
+        choices=API_PROVIDER_CHOICES,
+        default="local",
+        help="API provider: local=OpenAI-compatible server, dashscope=Alibaba DashScope"
     )
     parser.add_argument(
-        "--model-name",
+        "--api-base-url",
+        "--server-url",
+        dest="api_base_url",
         type=str,
         default=None,
-        help="Model name on vLLM server (auto-detected if not specified)"
+        help="OpenAI-compatible API base URL; supports both http://host:port and http://host:port/v1"
+    )
+    parser.add_argument(
+        "--model",
+        "--model-name",
+        dest="model_name",
+        type=str,
+        default=None,
+        help="Model name; local defaults to auto-detection from http://localhost:8000/v1/models, dashscope defaults to qwen3.5-plus"
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="Explicit API key for authenticated providers"
+    )
+    parser.add_argument(
+        "--api-key-env",
+        type=str,
+        default="DASHSCOPE_API_KEY",
+        help="Environment variable name used to load API key when needed"
+    )
+    parser.add_argument(
+        "--thinking-mode",
+        type=str,
+        choices=THINKING_MODE_CHOICES,
+        default="off",
+        help="Thinking mode: auto=backend default, on=enable, off=disable"
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Maximum retries for remote model requests"
     )
     parser.add_argument(
         "--split",
@@ -313,8 +526,13 @@ def main():
 
     # 初始化 Qwen 智能体（通过 vLLM HTTP 接口）
     agent = QwenNavigationAgent(
-        server_url=args.server_url,
+        api_provider=args.api_provider,
+        api_base_url=args.api_base_url,
         model_name=args.model_name,
+        api_key=args.api_key,
+        api_key_env=args.api_key_env,
+        thinking_mode=args.thinking_mode,
+        max_retries=args.max_retries,
     )
 
     # 运行测试
