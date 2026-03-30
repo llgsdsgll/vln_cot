@@ -15,7 +15,7 @@ from collections import defaultdict
 
 import cv2
 import numpy as np
-import openai
+import requests
 import torch
 from habitat import Env, logger
 from habitat.sims.habitat_simulator.actions import HabitatSimActions
@@ -86,14 +86,15 @@ class QwenNavigationAgent:
         self.thinking_mode = thinking_mode
         self.max_retries = max_retries
         self.base_url = self._resolve_api_base_url(api_provider, api_base_url)
-        self._client = openai.OpenAI(
-            api_key=self._resolve_api_key(
-                api_provider=api_provider,
-                api_key=api_key,
-                api_key_env=api_key_env,
-            ),
-            base_url=self.base_url,
+        self.api_key = self._resolve_api_key(
+            api_provider=api_provider,
+            api_key=api_key,
+            api_key_env=api_key_env,
         )
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer {}".format(self.api_key),
+        }
         self.model_name = self._resolve_model_name(model_name)
         self.actions = list(ACTION_MAP.keys())
         self.step_count = 0
@@ -208,8 +209,8 @@ class QwenNavigationAgent:
 
     @staticmethod
     def _extract_response_text(response):
-        """兼容字符串或分片结构的 message.content。"""
-        content = response.choices[0].message.content
+        """兼容 OpenAI 兼容接口返回的字符串或分片结构内容。"""
+        content = response["choices"][0]["message"]["content"]
         if content is None:
             return ""
         if isinstance(content, str):
@@ -260,25 +261,34 @@ class QwenNavigationAgent:
         last_error = None
         for attempt in range(1, self.max_retries + 1):
             try:
-                response = self._client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                    max_tokens=32,
-                    temperature=0.0,
-                    top_p=1.0,
-                    extra_body=self._build_request_extra_body(),
-                )
-                return self._extract_response_text(response)
+                payload = {
+                    "model": self.model_name,
+                    "messages": messages,
+                    "max_tokens": 32,
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                }
+                payload.update(self._build_request_extra_body())
 
-            except openai.BadRequestError as exc:
+                response = requests.post(
+                    self.base_url.rstrip("/") + "/chat/completions",
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60,
+                )
+                response.raise_for_status()
+                response_json = response.json()
+                return self._extract_response_text(response_json)
+
+            except requests.exceptions.HTTPError as exc:
                 last_error = exc
                 logger.warning(
-                    "VLM request is invalid (attempt %d/%d): %s",
+                    "VLM request returned HTTP error (attempt %d/%d): %s",
                     attempt,
                     self.max_retries,
                     exc,
                 )
-            except openai.APIConnectionError as exc:
+            except requests.exceptions.ConnectionError as exc:
                 last_error = exc
                 logger.warning(
                     "VLM connection failed (attempt %d/%d): %s",
@@ -286,10 +296,10 @@ class QwenNavigationAgent:
                     self.max_retries,
                     exc,
                 )
-            except openai.RateLimitError as exc:
+            except requests.exceptions.Timeout as exc:
                 last_error = exc
                 logger.warning(
-                    "VLM rate limited (attempt %d/%d): %s",
+                    "VLM request timed out (attempt %d/%d): %s",
                     attempt,
                     self.max_retries,
                     exc,
@@ -348,6 +358,30 @@ def setup_config(config, split):
     return config
 
 
+def override_data_paths(config, dataset_root=None, scenes_dir=None):
+    """按需覆盖数据集和场景路径。"""
+    if dataset_root is None and scenes_dir is None:
+        return config
+
+    config.defrost()
+    if dataset_root is not None:
+        dataset_root = dataset_root.rstrip("/")
+        config.TASK_CONFIG.DATASET.DATA_PATH = os.path.join(
+            dataset_root,
+            "{split}",
+            "{split}.json.gz",
+        )
+        config.TASK_CONFIG.TASK.NDTW.GT_PATH = os.path.join(
+            dataset_root,
+            "{split}",
+            "{split}_gt.json.gz",
+        )
+    if scenes_dir is not None:
+        config.TASK_CONFIG.DATASET.SCENES_DIR = scenes_dir
+    config.freeze()
+    return config
+
+
 def get_instruction(episode):
     """从 episode 中提取导航指令文本"""
     # habitat 中指令存储在 episode.instruction.instruction_text
@@ -364,7 +398,7 @@ def print_metrics(stats, split):
     logger.info(f"{'='*50}\n")
 
 
-def test_navigation(config, agent, split, num_episodes, output_dir):
+def test_navigation(config, agent, split, num_episodes, output_dir, dataset_root=None, scenes_dir=None):
     """
     运行导航测试，参考 evaluate_agent() 的结构
 
@@ -377,6 +411,11 @@ def test_navigation(config, agent, split, num_episodes, output_dir):
     """
     # 配置环境（参考 nonlearning_agents.py）
     config = setup_config(config, split)
+    config = override_data_paths(
+        config,
+        dataset_root=dataset_root,
+        scenes_dir=scenes_dir,
+    )
 
     # 初始化 Habitat 环境
     env = Env(config=config.TASK_CONFIG)
@@ -509,6 +548,18 @@ def main():
         default="./results",
         help="Directory to save results"
     )
+    parser.add_argument(
+        "--dataset-root",
+        type=str,
+        default=None,
+        help="Dataset root containing train/val_seen/val_unseen split folders"
+    )
+    parser.add_argument(
+        "--scenes-dir",
+        type=str,
+        default=None,
+        help="Scene dataset root directory used by Habitat"
+    )
 
     args = parser.parse_args()
 
@@ -542,6 +593,8 @@ def main():
         split=args.split,
         num_episodes=args.num_episodes,
         output_dir=args.output_dir,
+        dataset_root=args.dataset_root,
+        scenes_dir=args.scenes_dir,
     )
 
 

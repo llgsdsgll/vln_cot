@@ -1,0 +1,28 @@
+{
+  "split": "val_unseen",
+  "num_episodes": 1,
+  "averaged_metrics": {
+    "distance_to_goal": 8.554954528808594,
+    "success": 0.0,
+    "spl": 0.0,
+    "ndtw": 0.3448890006032439,
+    "path_length": 1.0000883862376213,
+    "oracle_success": 0.0,
+    "steps_taken": 9.0
+  },
+  "episode_results": [
+    {
+      "episode_id": "1",
+      "instruction": "Exit the bedroom and turn left. Walk straight passing the gray couch and stop near the rug. ",
+      "metrics": {
+        "distance_to_goal": 8.554954528808594,
+        "success": 0.0,
+        "spl": 0.0,
+        "ndtw": 0.3448890006032439,
+        "path_length": 1.0000883862376213,
+        "oracle_success": 0.0,
+        "steps_taken": 9.0
+      }
+    }
+  ]
+}

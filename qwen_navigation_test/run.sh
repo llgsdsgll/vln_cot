@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+HABITAT_LAB_ROOT="${HABITAT_LAB_ROOT:-${PROJECT_ROOT}/habitat-lab}"
+
 # 本地运行 Habitat 仿真，远端大模型通过 OpenAI 兼容接口访问。
 # 典型用法：
 #   1. 直接填写远端服务地址：
@@ -14,13 +18,16 @@ set -euo pipefail
 
 export PYTHONPATH=.
 
-HABITAT_ENV_PREFIX="${HABITAT_ENV_PREFIX:-/home/gs/my_project/qwen_vln/habitat_env}"
+CONDA_ROOT="${CONDA_ROOT:-/home/gs/anaconda3}"
+CONDA_ENV_NAME="${CONDA_ENV_NAME:-vlnce}"
 export HABITAT_GPU="${HABITAT_GPU:-0}"
 
-conda run -p "${HABITAT_ENV_PREFIX}" bash -lc '
-set -euo pipefail
+cd "${PROJECT_ROOT}"
 
-export PYTHONPATH=.
+source "${CONDA_ROOT}/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV_NAME}"
+
+export PYTHONPATH="${PROJECT_ROOT}:${HABITAT_LAB_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export CUDA_VISIBLE_DEVICES="${HABITAT_GPU:-0}"
 
 resolved_api_provider="${QWEN_API_PROVIDER:-local}"
@@ -41,7 +48,7 @@ if [ "${resolved_api_provider}" = "local" ]; then
   echo "Auto-detecting deployed model from ${models_endpoint}" >&2
   models_json="$(curl -fsS "${models_endpoint}")"
   resolved_model="$(
-    MODELS_JSON="${models_json}" python3 - <<'"'"'PY'"'"'
+    MODELS_JSON="${models_json}" python3 - <<'PY'
 import json
 import os
 import sys
@@ -73,6 +80,8 @@ cmd=(
   --split "${QWEN_SPLIT:-val_unseen}"
   --num-episodes "${QWEN_NUM_EPISODES:-2}"
   --output-dir "${QWEN_OUTPUT_DIR:-qwen_navigation_test/results}"
+  --dataset-root "${QWEN_DATASET_ROOT:-/home/gs/my_test/vln_dataset/data/datasets/r2r}"
+  --scenes-dir "${QWEN_SCENES_DIR:-/home/gs/my_test/vln_dataset/data/scene_datasets/mp3d/mp3d_habitat}"
 )
 
 if [ -n "${resolved_model}" ]; then
@@ -88,4 +97,3 @@ if [ -n "${QWEN_API_KEY_ENV:-}" ]; then
 fi
 
 "${cmd[@]}"
-'
