@@ -11,7 +11,7 @@ import os
 import re
 import time
 from urllib import request
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import cv2
 import numpy as np
@@ -30,11 +30,14 @@ ACTION_MAP = {
     "left":     HabitatSimActions.TURN_LEFT,
     "right":    HabitatSimActions.TURN_RIGHT,
 }
+ACTION_NAME_MAP = {value: key for key, value in ACTION_MAP.items()}
 
 SYSTEM_PROMPT = (
     "You are an embodied navigation agent. You will be given a navigation instruction "
-    "and a first-person RGB image of your current view from a simulator. "
-    "Based on the image and the instruction, output exactly one action from: "
+    "and a short trajectory window from a simulator. The window may contain several "
+    "history frames with the action taken after each frame, followed by the current "
+    "first-person RGB view. Based on the instruction and the ordered visual history, "
+    "output exactly one action for the current view from: "
     "stop, forward, left, right. "
     "Reply with only the action word, nothing else."
 )
@@ -59,6 +62,7 @@ class QwenNavigationAgent:
         api_key_env="DASHSCOPE_API_KEY",
         thinking_mode="off",
         max_retries=3,
+        history_len=3,
     ):
         """
         初始化多模态 LLM 客户端。
@@ -73,6 +77,7 @@ class QwenNavigationAgent:
             api_key_env: 当 provider 需要鉴权时，读取 API Key 的环境变量名。
             thinking_mode: thinking 模式开关，参考 vln_data_synthesizer.py。
             max_retries: 请求失败时的最大重试次数。
+            history_len: 每次决策时拼接到提示中的历史帧数量。
         """
         if api_provider not in API_PROVIDER_CHOICES:
             raise ValueError("unsupported api_provider: {}".format(api_provider))
@@ -80,11 +85,14 @@ class QwenNavigationAgent:
             raise ValueError("unsupported thinking_mode: {}".format(thinking_mode))
         if max_retries < 1:
             raise ValueError("max_retries must be >= 1")
+        if history_len < 0:
+            raise ValueError("history_len must be >= 0")
 
         self.api_provider = api_provider
         self.api_key_env = api_key_env
         self.thinking_mode = thinking_mode
         self.max_retries = max_retries
+        self.history_len = history_len
         self.base_url = self._resolve_api_base_url(api_provider, api_base_url)
         self.api_key = self._resolve_api_key(
             api_provider=api_provider,
@@ -98,12 +106,14 @@ class QwenNavigationAgent:
         self.model_name = self._resolve_model_name(model_name)
         self.actions = list(ACTION_MAP.keys())
         self.step_count = 0
+        self.history = deque(maxlen=history_len)
         logger.info(
-            "Connected navigation agent | provider=%s | base_url=%s | model=%s | thinking_mode=%s",
+            "Connected navigation agent | provider=%s | base_url=%s | model=%s | thinking_mode=%s | history_len=%s",
             self.api_provider,
             self.base_url,
             self.model_name,
             self.thinking_mode,
+            self.history_len,
         )
 
     @staticmethod
@@ -182,11 +192,63 @@ class QwenNavigationAgent:
 
     def _build_prompt(self, instruction):
         """构建发送给 Qwen3.5 的文本提示词"""
+        history_count = len(self.history)
+        if history_count == 0:
+            history_summary = "No previous trajectory frames are available yet."
+        else:
+            history_summary = (
+                "You are given {} history frame(s), ordered from oldest to newest. "
+                "Each history frame is paired with the action that was executed right "
+                "after observing that frame."
+            ).format(history_count)
+
         return (
             "Navigation instruction: {}\n"
-            "Current step: {}\n"
-            "What is your next action? Choose from: stop, forward, left, right."
-        ).format(instruction, self.step_count)
+            "Current decision step: {}\n"
+            "{}\n"
+            "The final image is the current view. Predict the next action for the current view only.\n"
+            "Choose exactly one action from: stop, forward, left, right."
+        ).format(instruction, self.step_count, history_summary)
+
+    def _build_user_content(self, prompt, current_image_data_uri):
+        """构造多图滑动窗口消息，包含历史帧及其对应动作。"""
+        user_content = [{"type": "text", "text": prompt}]
+
+        history_start_step = self.step_count - len(self.history)
+        for offset, item in enumerate(self.history):
+            history_step = history_start_step + offset
+            user_content.append(
+                {
+                    "type": "text",
+                    "text": (
+                        "History frame at step {}. "
+                        "Action taken after this frame: {}."
+                    ).format(history_step, item["action_name"]),
+                }
+            )
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": item["image_data_uri"]},
+                }
+            )
+
+        user_content.append(
+            {
+                "type": "text",
+                "text": (
+                    "Current frame at step {}. "
+                    "Predict the next action for this frame."
+                ).format(self.step_count),
+            }
+        )
+        user_content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": current_image_data_uri},
+            }
+        )
+        return user_content
 
     @staticmethod
     def _encode_rgb(rgb_obs):
@@ -241,18 +303,9 @@ class QwenNavigationAgent:
         logger.warning(f"Cannot parse action from: '{response_text}', defaulting to MOVE_FORWARD")
         return HabitatSimActions.MOVE_FORWARD
 
-    def _request_action(self, prompt, image_data_uri):
+    def _request_action(self, prompt, current_image_data_uri):
         """调用远端多模态 LLM，返回原始文本。"""
-        user_content = [
-            {
-                "type": "image_url",
-                "image_url": {"url": image_data_uri},
-            },
-            {
-                "type": "text",
-                "text": prompt,
-            },
-        ]
+        user_content = self._build_user_content(prompt, current_image_data_uri)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -331,12 +384,21 @@ class QwenNavigationAgent:
         """
         prompt = self._build_prompt(instruction)
 
-        # 提取并编码第一人称 RGB 图像
+        # 提取并编码第一人称 RGB 图像，结合最近几步轨迹做滑动窗口推理
         rgb_obs = observations["rgb"]  # shape: (H, W, 3), dtype: uint8
         image_data_uri = self._encode_rgb(rgb_obs)
 
         response_text = self._request_action(prompt, image_data_uri)
         action = self._parse_action(response_text)
+        action_name = ACTION_NAME_MAP[action]
+
+        if self.history_len > 0:
+            self.history.append(
+                {
+                    "image_data_uri": image_data_uri,
+                    "action_name": action_name,
+                }
+            )
 
         self.step_count += 1
         return {"action": action}
@@ -344,6 +406,7 @@ class QwenNavigationAgent:
     def reset(self):
         """重置智能体状态"""
         self.step_count = 0
+        self.history.clear()
 
 
 def setup_config(config, split):
@@ -530,6 +593,12 @@ def main():
         help="Maximum retries for remote model requests"
     )
     parser.add_argument(
+        "--history-len",
+        type=int,
+        default=3,
+        help="Number of past (frame, action) pairs included in the sliding window"
+    )
+    parser.add_argument(
         "--split",
         type=str,
         default="val_unseen",
@@ -584,6 +653,7 @@ def main():
         api_key_env=args.api_key_env,
         thinking_mode=args.thinking_mode,
         max_retries=args.max_retries,
+        history_len=args.history_len,
     )
 
     # 运行测试

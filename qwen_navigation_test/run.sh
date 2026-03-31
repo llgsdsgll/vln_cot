@@ -77,6 +77,7 @@ cmd=(
   --api-base-url "${resolved_api_base_url}"
   --thinking-mode "${QWEN_THINKING_MODE:-off}"
   --max-retries "${QWEN_MAX_RETRIES:-3}"
+  --history-len "${QWEN_HISTORY_LEN:-3}"
   --split "${QWEN_SPLIT:-val_unseen}"
   --num-episodes "${QWEN_NUM_EPISODES:-2}"
   --output-dir "${QWEN_OUTPUT_DIR:-qwen_navigation_test/results}"

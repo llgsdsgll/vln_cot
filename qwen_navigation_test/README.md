@@ -80,6 +80,111 @@ bash qwen_navigation_test/run.sh
 - 默认评测 `val_unseen`
 - 默认输出到 `qwen_navigation_test/results`
 
+## 测评流程
+
+整个测评链路由 `run.sh` 和 `test_qwen_vln.py` 两部分组成。
+
+### 1. `run.sh` 做启动准备
+
+`run.sh` 负责把运行环境准备好，然后再调用 Python 测试脚本：
+
+1. 切到项目根目录 `/home/gs/my_project/qwen_vln`
+2. `source conda.sh` 并激活 `vlnce` 环境
+3. 设置 `PYTHONPATH`，把项目根目录和 `habitat-lab` 源码目录都加入模块搜索路径
+4. 解析模型接口地址，默认使用 `http://127.0.0.1:8000/v1`
+5. 通过 `curl http://localhost:8000/v1/models` 获取当前服务端部署的第一个模型名
+6. 组装命令行参数，调用 `python3 qwen_navigation_test/test_qwen_vln.py`
+
+### 2. `main()` 解析参数并初始化
+
+`test_qwen_vln.py` 的 `main()` 负责准备配置和智能体：
+
+1. 解析命令行参数，包括：
+   - 模型接口参数：`--api-provider`、`--api-base-url`、`--model`
+   - 评测参数：`--split`、`--num-episodes`、`--output-dir`
+   - 数据路径参数：`--dataset-root`、`--scenes-dir`
+2. 使用 `get_config()` 读取 `vlnce_baselines/config/r2r_baselines/nonlearning.yaml`
+3. 创建输出目录
+4. 设置 `torch` 和 `numpy` 随机种子
+5. 初始化 `QwenNavigationAgent`
+
+### 3. `QwenNavigationAgent` 如何请求模型
+
+智能体每一步只做一件事：根据当前第一视角图像和导航指令预测下一动作。
+
+初始化时会：
+
+1. 解析 API 地址和 API key
+2. 如果没有显式传 `--model`，在 local 模式下从 `http://localhost:8000/v1/models` 自动探测模型名
+
+每次 `act()` 时会：
+
+1. 用导航指令和当前步数构造 prompt
+2. 取 `observations["rgb"]`
+3. 把 RGB 图像编码成 base64 JPEG
+4. 以多模态消息格式调用 `/v1/chat/completions`
+5. 从模型返回文本中解析 `stop / forward / left / right`
+6. 转成 Habitat 的动作 ID：
+   - `stop -> HabitatSimActions.STOP`
+   - `forward -> HabitatSimActions.MOVE_FORWARD`
+   - `left -> HabitatSimActions.TURN_LEFT`
+   - `right -> HabitatSimActions.TURN_RIGHT`
+
+如果输出无法解析，脚本会默认返回 `MOVE_FORWARD`，避免中途直接停住。
+
+### 4. `test_navigation()` 如何跑评测
+
+`test_navigation()` 是真正的评测主循环：
+
+1. 调用 `setup_config()` 把 split 同步到：
+   - `DATASET.SPLIT`
+   - `TASK.NDTW.SPLIT`
+   - `TASK.SDTW.SPLIT`
+2. 调用 `override_data_paths()` 用传入的 `dataset_root` 和 `scenes_dir` 覆盖：
+   - `DATASET.DATA_PATH`
+   - `TASK.NDTW.GT_PATH`
+   - `DATASET.SCENES_DIR`
+3. 创建 `Env(config=config.TASK_CONFIG)`，初始化 Habitat 环境
+4. 根据 `num_episodes` 决定实际评测多少条 episode
+5. 对每个 episode：
+   - `env.reset()`
+   - `agent.reset()`
+   - 从 `env.current_episode.instruction.instruction_text` 取指令
+   - 在 `while not env.episode_over` 循环中不断执行：
+     - `action = agent.act(obs, instruction)`
+     - `obs = env.step(action)`
+6. episode 结束后，调用 `env.get_metrics()` 取本条轨迹指标
+7. 把每条 episode 的结果保存到 `episode_results`
+8. 所有 episode 结束后，对指标做平均
+
+### 5. 最终输出什么
+
+评测结束后脚本会做两件事：
+
+1. 在日志里打印平均指标，例如：
+   - `distance_to_goal`
+   - `success`
+   - `spl`
+   - `ndtw`
+   - `path_length`
+   - `oracle_success`
+   - `steps_taken`
+2. 把完整结果写到：
+
+```text
+qwen_navigation_test/results/results_<split>.json
+```
+
+结果文件中同时包含：
+- `averaged_metrics`：平均指标
+- `episode_results`：每条 episode 的详细指标和指令文本
+
+### 6. 一句话概括
+
+整套流程可以概括为：
+
+`run.sh` 准备环境和模型 -> `test_qwen_vln.py` 加载 Habitat 配置 -> 每个 episode 中用当前 RGB 图像和指令请求远端模型 -> 模型输出动作 -> Habitat 执行动作并返回新观察 -> episode 结束后统计指标 -> 最终保存 JSON 结果。
+
 ## 常用环境变量
 
 `run.sh` 支持以下覆盖项：

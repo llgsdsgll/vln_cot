@@ -1,6 +1,6 @@
 {
   "split": "val_unseen",
-  "num_episodes": 1,
+  "num_episodes": 2,
   "averaged_metrics": {
     "distance_to_goal": 8.554954528808594,
     "success": 0.0,
@@ -8,7 +8,7 @@
     "ndtw": 0.3448890006032439,
     "path_length": 1.0000883862376213,
     "oracle_success": 0.0,
-    "steps_taken": 9.0
+    "steps_taken": 59.0
   },
   "episode_results": [
     {
@@ -21,7 +21,20 @@
         "ndtw": 0.3448890006032439,
         "path_length": 1.0000883862376213,
         "oracle_success": 0.0,
-        "steps_taken": 9.0
+        "steps_taken": 105.0
+      }
+    },
+    {
+      "episode_id": "2",
+      "instruction": "Walk out of the bedroom through the open door into the hallway. Turn the corner and walk into the dining area. Pass the dining table and walk  into the living room area towards the television. Stop near the chair and open sliding doors to outside. ",
+      "metrics": {
+        "distance_to_goal": 8.554954528808594,
+        "success": 0.0,
+        "spl": 0.0,
+        "ndtw": 0.3448890006032439,
+        "path_length": 1.0000883862376213,
+        "oracle_success": 0.0,
+        "steps_taken": 13.0
       }
     }
   ]
