@@ -1,0 +1,27 @@
+# Ignore everything by default at the repo root.
+/*
+
+# Keep git metadata config for this repo.
+!/.gitignore
+
+# Keep selected root-level files.
+!/README.md
+!/UPDATE*.md
+!/*.sh
+
+# Keep the Qwen annotation code directory.
+!/qwen_annotation/
+!/qwen_annotation/**
+
+# Also allow qwen_ann/ if you later rename/use that shorthand directory.
+!/qwen_ann/
+!/qwen_ann/**
+
+# Keep utility scripts.
+!/tools/
+!/tools/**
+
+# Ignore common generated files even inside kept directories.
+__pycache__/
+*.py[cod]
+*.pyo
