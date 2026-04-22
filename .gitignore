@@ -1,4 +1,6 @@
 /data/processed/frames/
+/data/processed/episode_videos/
+/data/processed/episode_ply/
 __pycache__/
 *.pyc
 debug/

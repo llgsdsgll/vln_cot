@@ -69,11 +69,12 @@ Rules:
 2. Keep each text field concise: 1-2 sentences only.
 3. Treat the Historical Trajectory Memory as the memory anchor carried from the previous frame. Use it as immediate past context instead of listing all past actions.
 4. Write actual reasoning content, not meta-instructions or copied placeholders.
-5. `step2_spatial_perception` should describe the target's relative screen position and visible appearance; the exact object name and bbox will be inserted programmatically.
-6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
-7. `step4_memory_update` must be exactly one concise sentence that can be reused as the next frame's Historical Trajectory Memory.
-8. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
-9. Do not output Markdown, code fences, comments, or any extra keys.
+5. `step1_task_progress` must state the current instruction progress: which predefined sub-tasks are already done, which step/sub-task the agent is currently on, and which step should be executed right now.
+6. `step2_spatial_perception` must cover every ground-truth annotated object visible in the current frame. Mention each object's exact name, exact bbox in `[xmin, ymin, xmax, ymax]`, relative screen position, and the key spatial relations among the objects when there are multiple.
+7. `step3_decision_logic` must explain why the action '{next_action}' is correct right now by grounding the decision in the spatial evidence from `step2_spatial_perception`, including object positions, bounding boxes, relative relations, and visibility state when relevant.
+8. `step4_memory_update` must be exactly one concise sentence that reuses the task-progress conclusion from `step1_task_progress` and records the current active task plus the action '{next_action}', so it can be reused as the next frame's Historical Trajectory Memory.
+9. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+10. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -84,6 +85,7 @@ Rules:
 - Historical Trajectory Memory: "{script_memory}"
 - Target Landmark/Object in Current Frame: {target_object_name}
 - Ground-Truth Target BBox (Normalized 0-1000): {bbox_norm}
+- All Ground-Truth Annotated Objects in Current Frame (Normalized 0-1000): {annotated_objects}
 - Ground-Truth Next Action: {next_action}
 
 [Visual Input]:
@@ -115,11 +117,12 @@ Rules:
 2. Keep each text field concise: 1-2 sentences only.
 3. Treat the Historical Trajectory Memory as the memory anchor carried from the previous frame. Use it as immediate past context instead of listing all past actions.
 4. Write actual reasoning content, not meta-instructions or copied placeholders.
-5. `step2_spatial_perception` must explicitly state that the target is not visible in the current frame and must not invent a bounding box.
-6. `step3_decision_logic` must explain why the action '{next_action}' is correct right now.
-7. `step4_memory_update` must be exactly one concise sentence that can be reused as the next frame's Historical Trajectory Memory.
-8. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
-9. Do not output Markdown, code fences, comments, or any extra keys.
+5. `step1_task_progress` must state the current instruction progress: which predefined sub-tasks are already done, which step/sub-task the agent is currently on, and which step should be executed right now.
+6. `step2_spatial_perception` must explicitly state that no ground-truth annotated object is visible in the current frame and must not invent any object or bounding box.
+7. `step3_decision_logic` must explain why the action '{next_action}' is correct right now by grounding the decision in the spatial evidence from `step2_spatial_perception`, including object positions, bounding boxes, relative relations, and visibility state when relevant.
+8. `step4_memory_update` must be exactly one concise sentence that reuses the task-progress conclusion from `step1_task_progress` and records the current active task plus the action '{next_action}', so it can be reused as the next frame's Historical Trajectory Memory.
+9. The final action label is already known, so do not add any extra action field beyond the four required reasoning keys.
+10. Do not output Markdown, code fences, comments, or any extra keys.
 
 [Current Ground-Truth State]:
 - Global Instruction: "{global_instruction}"
@@ -128,6 +131,7 @@ Rules:
 - Current Active Sub-task Index: {completed_index}
 - Current Active Sub-task: "{current_subtask}"
 - Historical Trajectory Memory: "{script_memory}"
+- All Ground-Truth Annotated Objects in Current Frame (Normalized 0-1000): []
 - Target Landmark/Object: (Not visible in current frame)
 - Ground-Truth Next Action: {next_action}
 
@@ -216,6 +220,17 @@ class StructuredTeacherTrace(BaseModel):
         context = info.context or {}
         target_visible = context.get("target_visible", False)
         action_mentions = context.get("action_mentions", ())
+        object_labels = context.get("object_labels", ())
+        bbox_texts = context.get("bbox_texts", ())
+        unseen_phrases = (
+            "not visible",
+            "not in view",
+            "unseen",
+            "no annotated object is visible",
+            "no annotated objects are visible",
+            "no object is visible",
+            "no objects are visible",
+        )
 
         total_len = (
             len(self.step1_task_progress)
@@ -228,11 +243,18 @@ class StructuredTeacherTrace(BaseModel):
 
         if target_visible:
             step2_lower = self.step2_spatial_perception.lower()
-            if any(phrase in step2_lower for phrase in ("not visible", "not in view", "unseen")):
+            if any(phrase in step2_lower for phrase in unseen_phrases):
                 raise ValueError("step2 should describe a visible target, not say it is unseen")
+            missing_labels = [label for label in object_labels if label not in step2_lower]
+            if missing_labels:
+                raise ValueError("step2 must mention every visible annotated object name")
+            compact_step2 = re.sub(r"\s+", "", self.step2_spatial_perception)
+            missing_bboxes = [bbox for bbox in bbox_texts if re.sub(r"\s+", "", bbox) not in compact_step2]
+            if missing_bboxes:
+                raise ValueError("step2 must include every visible annotated object's bbox")
         else:
             step2_lower = self.step2_spatial_perception.lower()
-            if not any(phrase in step2_lower for phrase in ("not visible", "not in view", "unseen")):
+            if not any(phrase in step2_lower for phrase in unseen_phrases):
                 raise ValueError("step2 must say the target is not visible")
 
         if action_mentions and not any(
@@ -427,6 +449,88 @@ class VLNDataSynthesizer:
         return [xmin, ymin, xmax, ymax]
 
     @staticmethod
+    def _bbox_center(bbox_norm: list[int]) -> tuple[float, float]:
+        """返回归一化 bbox 的中心点坐标。"""
+        return (
+            (bbox_norm[0] + bbox_norm[2]) / 2,
+            (bbox_norm[1] + bbox_norm[3]) / 2,
+        )
+
+    @classmethod
+    def _relative_relation_between_bboxes(
+        cls,
+        reference_bbox: list[int],
+        other_bbox: list[int],
+    ) -> str:
+        """粗略描述两个 bbox 中心点的相对方位。"""
+        ref_x, ref_y = cls._bbox_center(reference_bbox)
+        other_x, other_y = cls._bbox_center(other_bbox)
+        threshold = 80
+
+        horizontal: Optional[str] = None
+        vertical: Optional[str] = None
+        if other_x - ref_x > threshold:
+            horizontal = "right"
+        elif ref_x - other_x > threshold:
+            horizontal = "left"
+
+        if other_y - ref_y > threshold:
+            vertical = "below"
+        elif ref_y - other_y > threshold:
+            vertical = "above"
+
+        if horizontal and vertical:
+            return f"{vertical}-{horizontal} of"
+        if vertical:
+            return f"{vertical} of"
+        if horizontal:
+            return f"{horizontal} of"
+        return "near"
+
+    @classmethod
+    def _format_annotated_objects(cls, objects: list[dict[str, Any]]) -> str:
+        """将当前帧所有标注物体格式化为紧凑文本。"""
+        if not objects:
+            return "[]"
+
+        summaries: list[str] = []
+        reference_label: Optional[str] = None
+        reference_bbox: Optional[list[int]] = None
+
+        for index, obj in enumerate(objects):
+            label = collapse_whitespace(str(obj.get("label", "object"))) or "object"
+            bbox_norm = cls.normalize_bbox(obj["bbox"])
+            position = cls._relative_position_from_bbox(bbox_norm)
+            summary = f"'{label}' at {bbox_norm} ({position})"
+
+            if index > 0 and reference_label is not None and reference_bbox is not None:
+                relation = cls._relative_relation_between_bboxes(reference_bbox, bbox_norm)
+                if relation == "near":
+                    summary += f", near '{reference_label}'"
+                else:
+                    summary += f", {relation} '{reference_label}'"
+
+            summaries.append(summary)
+            if index == 0:
+                reference_label = label
+                reference_bbox = bbox_norm
+
+        return "; ".join(summaries)
+
+    @staticmethod
+    def _format_object_names(objects: list[dict[str, Any]]) -> str:
+        """将物体名称列表格式化为可读短语。"""
+        names = [
+            f"'{collapse_whitespace(str(obj.get('label', 'object'))) or 'object'}'"
+            for obj in objects
+        ]
+        if not names:
+            return "no annotated objects"
+        if len(names) == 1:
+            return names[0]
+        return ", ".join(names[:-1]) + f" and {names[-1]}"
+
+    @staticmethod
     def _format_history_memory_input(history_memory: Optional[str]) -> str:
         """将历史记忆锚点格式化为 prompt / JSON 可用的字符串。"""
         if history_memory is None:
@@ -450,19 +554,16 @@ class VLNDataSynthesizer:
             return self._format_history_memory_input(preferred_text)
 
         action_phrase = self._action_phrase(next_action)
+        current_subtask = collapse_whitespace(str(frame_data.get("subtask") or "the current sub-task"))
         objects = frame_data.get("objects", [])
         if objects:
-            obj = objects[0]
-            target_name = obj["label"]
-            bbox_norm = self.normalize_bbox(obj["bbox"])
-            position = self._relative_position_from_bbox(bbox_norm)
             return (
-                f"In this step, I observed the '{target_name}' in the {position} and "
-                f"decided to {action_phrase} for the current sub-task."
+                f"The agent is on '{current_subtask}', sees {self._format_object_names(objects)}, "
+                f"and the action taken is {action_phrase}."
             )
         return (
-            f"In this step, the target was not visible, so I decided to {action_phrase} "
-            f"to continue the current sub-task."
+            f"The agent is on '{current_subtask}', no annotated object is visible, "
+            f"and the action taken is {action_phrase}."
         )
 
     @staticmethod
@@ -562,9 +663,16 @@ class VLNDataSynthesizer:
             "target_visible": bool(objects),
         }
         if objects:
-            obj = objects[0]
-            context["target_name"] = obj["label"]
-            context["bbox_str"] = str(self.normalize_bbox(obj["bbox"]))
+            context["object_labels"] = tuple(
+                {
+                    collapse_whitespace(str(obj.get("label", "object"))).lower()
+                    for obj in objects
+                }
+            )
+            context["bbox_texts"] = tuple(
+                str(self.normalize_bbox(obj["bbox"]))
+                for obj in objects
+            )
 
         try:
             structured_trace = StructuredTeacherTrace.model_validate_json(
@@ -586,22 +694,10 @@ class VLNDataSynthesizer:
         next_action: str,
     ) -> str:
         """将通过校验的结构化教师输出渲染为最终 Markdown 模板。"""
-        objects = frame_data.get("objects", [])
-        if objects:
-            obj = objects[0]
-            target_name = obj["label"]
-            bbox = VLNDataSynthesizer.normalize_bbox(obj["bbox"])
-            step2 = (
-                f"I see the '{target_name}' and it is located at the exact bounding box {bbox}. "
-                f"{structured_trace.step2_spatial_perception}"
-            )
-        else:
-            step2 = structured_trace.step2_spatial_perception
-
         return (
             "**Reasoning Process:**\n"
             f"Step 1: Task Progress. {structured_trace.step1_task_progress}\n"
-            f"Step 2: Spatial Perception. {step2}\n"
+            f"Step 2: Spatial Perception. {structured_trace.step2_spatial_perception}\n"
             f"Step 3: Decision Logic. {structured_trace.step3_decision_logic}\n"
             f"Step 4: Memory Update. {structured_trace.step4_memory_update}\n\n"
             "**Final Action:**\n"
@@ -638,7 +734,7 @@ class VLNDataSynthesizer:
         next_action: str,
     ) -> FrameGenerationResult:
         """当模型多次返回不合格时，使用真值信息生成严格合规的兜底答案。"""
-        current_subtask, completed_subtasks_str = self._build_current_task_state(
+        current_subtask, _ = self._build_current_task_state(
             frame_data=frame_data,
             global_instruction=global_instruction,
             global_subtasks=global_subtasks,
@@ -646,70 +742,64 @@ class VLNDataSynthesizer:
         )
         action_phrase = self._action_phrase(next_action)
         history_memory_input = self._format_history_memory_input(history_memory)
+        total_steps = max(1, len(global_subtasks))
+        completed_count = max(0, min(completed_index, total_steps))
+        current_step_number = max(1, min(completed_index + 1, total_steps))
         memory_clause = (
-            f'The previous memory anchor is "{history_memory_input}".'
+            f'Using the previous memory anchor "{history_memory_input}",'
             if history_memory_input != "None"
-            else "There is no previous memory anchor at this step."
+            else "With no previous memory anchor,"
         )
-
-        if completed_subtasks_str == "[]":
-            step1 = (
-                f"{memory_clause} No sub-tasks have been completed yet. "
-                f"The current active sub-task is '{current_subtask}'."
-            )
-        else:
-            step1 = (
-                f"{memory_clause} The completed sub-tasks so far are {completed_subtasks_str}. "
-                f"The current active sub-task is '{current_subtask}'."
-            )
+        step1 = (
+            f"{memory_clause} the agent has completed {completed_count} of {total_steps} sub-tasks "
+            f"and is now on step {current_step_number}: '{current_subtask}'. "
+            f"The step to execute now is this active sub-task."
+        )
 
         objects = frame_data.get("objects", [])
         if objects:
-            obj = objects[0]
-            target_name = obj["label"]
-            bbox_norm = self.normalize_bbox(obj["bbox"])
-            position = self._relative_position_from_bbox(bbox_norm)
-            step2 = f"It is in the {position}."
+            step2 = f"The annotated objects in this frame are {self._format_annotated_objects(objects)}."
             if next_action == "MOVE_FORWARD":
                 step3 = (
-                    f"The target is already visible in front of the agent, so move forward "
-                    f"is necessary to keep approaching it and continue the sub-task."
+                    f"Based on the object positions, bounding boxes, and relative layout described in step2, the "
+                    f"visible landmarks are already aligned with step {current_step_number} ('{current_subtask}'), "
+                    f"so move forward is the correct action to keep progressing."
                 )
             elif next_action == "TURN_LEFT":
                 step3 = (
-                    f"The target or path needs better leftward alignment, so turn left is "
-                    f"the correct action to continue the sub-task."
+                    f"Based on the object positions, bounding boxes, and relative layout described in step2, the "
+                    f"scene still needs a leftward adjustment for step {current_step_number} ('{current_subtask}'), "
+                    f"so turn left is the correct action right now."
                 )
             elif next_action == "TURN_RIGHT":
                 step3 = (
-                    f"The target or path needs better rightward alignment, so turn right is "
-                    f"the correct action to continue the sub-task."
+                    f"Based on the object positions, bounding boxes, and relative layout described in step2, the "
+                    f"scene still needs a rightward adjustment for step {current_step_number} ('{current_subtask}'), "
+                    f"so turn right is the correct action right now."
                 )
             else:
                 step3 = (
-                    f"The navigation goal for the current sub-task has been reached, so stop "
-                    f"is the correct action now."
+                    f"Based on the object positions, bounding boxes, and relative layout described in step2, the "
+                    f"landmarks indicate that step {current_step_number} ('{current_subtask}') has been satisfied, "
+                    f"so stop is the correct action now."
                 )
-            step4 = (
-                f"This step observes the '{target_name}' in the {position} and decides to "
-                f"{action_phrase} for the current sub-task."
-            )
         else:
-            step2 = "The target object is not visible in the current field of view."
+            step2 = "The ground-truth annotated objects are not visible in the current frame, so there is no bbox to report."
             if next_action == "STOP":
                 step3 = (
-                    "Even though the target is not visible, the trajectory indicates that "
-                    "stopping is the correct final action at this point."
+                    "Based on the spatial evidence in step2, no annotated object is visible and there is no bbox to "
+                    "align to, so the trajectory indicates that stopping is the correct final action at this point."
                 )
             else:
                 step3 = (
-                    f"Because the target is not visible, {action_phrase} is the most "
-                    f"reasonable exploration action to continue the current sub-task."
+                    f"Based on the spatial evidence in step2, no annotated object is visible for step "
+                    f"{current_step_number} ('{current_subtask}'), so {action_phrase} is the most reasonable action "
+                    f"to continue it."
                 )
-            step4 = (
-                f"This step notes that the target is unseen and chooses to {action_phrase} "
-                f"to maintain progress."
-            )
+        step4 = (
+            f"The agent is on step {current_step_number}: '{current_subtask}', and the action taken "
+            f"in this frame is {action_phrase}."
+        )
 
         structured_trace = StructuredTeacherTrace.model_validate(
             {
@@ -721,6 +811,16 @@ class VLNDataSynthesizer:
             context={
                 "target_visible": bool(objects),
                 "action_mentions": self._action_mentions(next_action),
+                "object_labels": tuple(
+                    {
+                        collapse_whitespace(str(obj.get("label", "object"))).lower()
+                        for obj in objects
+                    }
+                ),
+                "bbox_texts": tuple(
+                    str(self.normalize_bbox(obj["bbox"]))
+                    for obj in objects
+                ),
             },
         )
         return self._result_from_structured_trace(
@@ -772,6 +872,7 @@ class VLNDataSynthesizer:
             target_name = obj["label"]
             bbox_norm = self.normalize_bbox(obj["bbox"])
             bbox_str = str(bbox_norm)
+            annotated_objects = self._format_annotated_objects(objects)
 
             prompt = PROMPT_TEMPLATE.format(
                 global_instruction=global_instruction,
@@ -782,6 +883,7 @@ class VLNDataSynthesizer:
                 script_memory=memory_str,
                 target_object_name=target_name,
                 bbox_norm=bbox_str,
+                annotated_objects=annotated_objects,
                 next_action=next_action,
             )
         else:
@@ -937,7 +1039,9 @@ class VLNDataSynthesizer:
                                 "step3_decision_logic, step4_memory_update. "
                                 "Do not include any extra keys. "
                                 "Do not repeat prompt instructions or placeholder text. "
-                                f"Step 3 must clearly justify the action '{next_action}'."
+                                f"Step 2 must mention every visible annotated object with its bbox, or clearly say no annotated object is visible. "
+                                f"Step 3 must clearly justify the action '{next_action}' using the spatial evidence from step2. "
+                                "Step 4 must update the current active task progress together with the chosen action."
                             ),
                         },
                     ]

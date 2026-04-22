@@ -16,7 +16,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 INPUT_JSON="${PROJECT_ROOT}/data/processed/gengshuang_1_H.264_0324_processed.json"
 GT_JSON="/home/gs/my_test/vln_dataset/data/datasets/r2r/train/train_gt.json"
 VIDEO_DIR="/home/gs/my_test/vln_dataset/vln_ce_video"
-OUTPUT_JSONL="${PROJECT_ROOT}/data/processed/output_cot.jsonl"
+DEBUG_ROOT="${PROJECT_ROOT}/debug"
 
 # ---------------- VLM API 配置 ----------------
 API_PROVIDER="${API_PROVIDER:-local}"
@@ -32,6 +32,59 @@ LOCAL_API_BASE_URL="http://localhost:8000/v1"
 LOCAL_MODEL_ID="/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8"
 DASHSCOPE_API_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
 DASHSCOPE_MODEL_ID="qwen3.5-plus"
+
+# ---------------- 输出命名配置 ----------------
+RUN_TIMESTAMP="${RUN_TIMESTAMP:-$(date '+%Y%m%d_%H%M%S')}"
+EXPORT_MARKDOWN="${EXPORT_MARKDOWN:-1}"
+INCLUDE_PROMPT_IN_MARKDOWN="${INCLUDE_PROMPT_IN_MARKDOWN:-0}"
+
+episode_ids_from_args=()
+capture_episode_ids=0
+for arg in "$@"; do
+    if [[ "${arg}" == --episode-ids=* ]]; then
+        episode_value="${arg#--episode-ids=}"
+        if [[ -n "${episode_value}" ]]; then
+            episode_ids_from_args+=("${episode_value}")
+        fi
+        capture_episode_ids=0
+        continue
+    fi
+
+    if [[ "${capture_episode_ids}" -eq 1 ]]; then
+        if [[ "${arg}" == --* ]]; then
+            capture_episode_ids=0
+        else
+            episode_ids_from_args+=("${arg}")
+            continue
+        fi
+    fi
+
+    if [[ "${arg}" == "--episode-ids" ]]; then
+        capture_episode_ids=1
+    fi
+done
+
+if [[ "${#episode_ids_from_args[@]}" -eq 1 ]]; then
+    EPISODE_TAG="$(printf 'ep%05d' "${episode_ids_from_args[0]}")"
+elif [[ "${#episode_ids_from_args[@]}" -gt 1 ]]; then
+    joined_episode_ids="$(printf '%s-' "${episode_ids_from_args[@]}")"
+    joined_episode_ids="${joined_episode_ids%-}"
+    EPISODE_TAG="eps_${joined_episode_ids}"
+else
+    EPISODE_TAG="all_episodes"
+fi
+
+RUN_LABEL="${API_PROVIDER}_${EPISODE_TAG}_${RUN_TIMESTAMP}"
+DEFAULT_OUTPUT_JSONL="${DEBUG_ROOT}/${RUN_LABEL}.jsonl"
+OUTPUT_JSONL="${OUTPUT_JSONL:-${DEFAULT_OUTPUT_JSONL}}"
+OUTPUT_DIR="$(dirname "${OUTPUT_JSONL}")"
+OUTPUT_BASENAME="$(basename "${OUTPUT_JSONL}")"
+OUTPUT_STEM="${OUTPUT_BASENAME%.jsonl}"
+DEFAULT_MARKDOWN_OUTPUT_DIR="${OUTPUT_DIR}/${OUTPUT_STEM}_md"
+MARKDOWN_OUTPUT_DIR="${MARKDOWN_OUTPUT_DIR:-${DEFAULT_MARKDOWN_OUTPUT_DIR}}"
+
+mkdir -p "${DEBUG_ROOT}"
+mkdir -p "${OUTPUT_DIR}"
 
 if [[ "${API_PROVIDER}" == "local" ]]; then
     API_BASE_URL="${API_BASE_URL:-${LOCAL_API_BASE_URL}}"
@@ -78,11 +131,12 @@ fi
 
 # ---------------- 运行合成脚本 ----------------
 echo ""
-echo "[3/3] 开始合成 CoT 数据..."
+echo "[3/4] 开始合成 CoT 数据..."
 echo "    输入: ${INPUT_JSON}"
 echo "    GT  : ${GT_JSON}"
 echo "    视频: ${VIDEO_DIR}"
 echo "    输出: ${OUTPUT_JSONL}"
+echo "    Markdown: ${MARKDOWN_OUTPUT_DIR}"
 echo "    Provider: ${API_PROVIDER}"
 echo "    Base URL: ${API_BASE_URL}"
 echo "    模型: ${MODEL_ID}"
@@ -114,5 +168,32 @@ CMD+=("$@")
 "${CMD[@]}"
 
 echo ""
-echo "完成！输出文件: ${OUTPUT_JSONL}"
+echo "JSONL 完成！输出文件: ${OUTPUT_JSONL}"
 echo "记录数: $(wc -l < "${OUTPUT_JSONL}")"
+
+if [[ "${EXPORT_MARKDOWN}" == "1" ]]; then
+    echo ""
+    echo "[4/4] 导出逐帧 Markdown..."
+    echo "    输入 JSONL : ${OUTPUT_JSONL}"
+    echo "    输出目录   : ${MARKDOWN_OUTPUT_DIR}"
+
+    MD_CMD=(
+        python3 "${SCRIPT_DIR}/jsonl_to_frame_markdown.py"
+        --input "${OUTPUT_JSONL}"
+        --output-dir "${MARKDOWN_OUTPUT_DIR}"
+    )
+
+    if [[ "${INCLUDE_PROMPT_IN_MARKDOWN}" == "1" ]]; then
+        MD_CMD+=(--include-prompt)
+    fi
+
+    "${MD_CMD[@]}"
+    echo ""
+    echo "全部完成！"
+    echo "JSONL 文件   : ${OUTPUT_JSONL}"
+    echo "Markdown 目录: ${MARKDOWN_OUTPUT_DIR}"
+else
+    echo ""
+    echo "[4/4] 已跳过 Markdown 导出（EXPORT_MARKDOWN=${EXPORT_MARKDOWN}）"
+    echo "JSONL 文件: ${OUTPUT_JSONL}"
+fi
