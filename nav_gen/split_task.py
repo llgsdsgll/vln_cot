@@ -14,13 +14,49 @@ from gpt import gpt4o_mini, gpt4o
 from tqdm import tqdm
 
 
+def _cuda_runtime_supported():
+    if not torch.cuda.is_available():
+        return False, "CUDA is not available"
+
+    try:
+        capability = torch.cuda.get_device_capability(0)
+        arch_list = torch.cuda.get_arch_list()
+        sm_tag = f"sm_{capability[0]}{capability[1]}"
+        if arch_list and sm_tag not in arch_list:
+            return False, f"PyTorch does not support GPU arch {sm_tag}"
+
+        x = torch.randn(8, 8, device='cuda')
+        _ = x @ x
+        return True, None
+    except Exception as err:
+        return False, str(err)
+
+
+def _resolve_ram_device(args):
+    requested = getattr(args, 'ram_device', 'auto')
+    if requested != 'auto':
+        device = torch.device(requested)
+        if device.type == 'cuda':
+            ok, reason = _cuda_runtime_supported()
+            if not ok:
+                raise RuntimeError(f"Requested RAM device `{requested}` is unavailable: {reason}")
+        return device
+
+    ok, reason = _cuda_runtime_supported()
+    if ok:
+        return torch.device('cuda')
+
+    print(f"Falling back to CPU for RAM inference: {reason}")
+    return torch.device('cpu')
+
+
 def init_model(args):
     global transform 
     global ram_model 
     global device
 
     pretrained = args.ram_model
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = _resolve_ram_device(args)
     
     transform = get_transform(image_size=384)
 

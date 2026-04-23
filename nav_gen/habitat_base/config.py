@@ -12,24 +12,32 @@ def make_setting(args, scene_file, robot):
     scene_dataset = args.scene_dataset
 
     rgb_sensor = True  # @param {type:"boolean"}
-    depth_sensor = True  # @param {type:"boolean"}
-    semantic_sensor = True  # @param {type:"boolean"}
+    front_rgb_only = bool(getattr(args, "front_rgb_only", False))
+    front_semantic_sensor = bool(getattr(args, "front_semantic_sensor", False))
+    depth_sensor = not front_rgb_only  # @param {type:"boolean"}
+    semantic_sensor = front_semantic_sensor or not front_rgb_only  # @param {type:"boolean"}
 
     if robot == 'spot':
-        height = 0.5
+        default_sensor_height = 0.5
     else:
-        height = 1
+        default_sensor_height = 1.0
+    width = int(getattr(args, "render_width", 512))
+    height = int(getattr(args, "render_height", 512))
+    sensor_height = float(getattr(args, "render_sensor_height", default_sensor_height))
+    sensor_hfov = float(getattr(args, "sensor_hfov", 90.0))
     sim_settings = {
-        "width": 512,  # Spatial resolution of the observations
-        "height": 512,
+        "width": width,  # Spatial resolution of the observations
+        "height": height,
         "scene": test_scene,  # Scene path
         "scene_dataset": scene_dataset,
+        "sim_gpu_device": getattr(args, "sim_gpu_device", 0),
         "default_agent": 0,
-        "sensor_height": height,  # Height of sensors in meters
+        "sensor_height": sensor_height,  # Height of sensors in meters
+        "sensor_hfov": sensor_hfov,  # Horizontal FOV in degrees
         "color_sensor_f": rgb_sensor,  # RGB sensor
-        "color_sensor_l": rgb_sensor,  # RGB sensor
-        "color_sensor_r": rgb_sensor,  # RGB sensor
-        "color_sensor_3rd": rgb_sensor,  # RGB sensor
+        "color_sensor_l": rgb_sensor and not front_rgb_only,  # RGB sensor
+        "color_sensor_r": rgb_sensor and not front_rgb_only,  # RGB sensor
+        "color_sensor_3rd": rgb_sensor and not front_rgb_only,  # RGB sensor
         "depth_sensor_f": depth_sensor,  # depth sensor
         "depth_sensor_l": depth_sensor,  # depth sensor
         "depth_sensor_r": depth_sensor,  # depth sensor
@@ -41,7 +49,7 @@ def make_setting(args, scene_file, robot):
 
 def make_cfg(settings):
     sim_cfg = habitat_sim.SimulatorConfiguration()
-    sim_cfg.gpu_device_id = 1
+    sim_cfg.gpu_device_id = settings.get("sim_gpu_device", 0)
     sim_cfg.scene_id = settings["scene"]
     sim_cfg.enable_physics = settings["enable_physics"]
 
@@ -112,6 +120,8 @@ def make_cfg(settings):
             sensor_spec.resolution = sensor_params["resolution"]
             sensor_spec.position = sensor_params["position"]
             sensor_spec.orientation = sensor_params["orientation"]
+            if "sensor_hfov" in settings:
+                sensor_spec.hfov = mn.Deg(settings["sensor_hfov"])
             if sensor_uuid == "color_sensor_3rd":
                 sensor_spec.sensor_subtype = habitat_sim.SensorSubType.PINHOLE
             sensor_specs.append(sensor_spec)

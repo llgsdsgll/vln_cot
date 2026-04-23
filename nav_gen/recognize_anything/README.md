@@ -337,11 +337,11 @@ Image Tags: Close-up | Compact car | Go-kart | Horse racing | Sport utility vehi
 
 2. You can also customize any tag categories for recognition through tag descriptions:
 
-Modify [categories](./generate_tag_des_llm.py#L56), and call GPT api to generate corresponding tag descriptions:
+Modify [categories](./generate_tag_des_llm.py#L67), and call the DashScope-compatible API to generate corresponding tag descriptions:
 
 <pre/>
 python generate_tag_des_llm.py \
---openai_api_key 'your openai api key' \
+--api_key 'your DashScope api key' \
 --output_file_path datasets/openimages_rare_200/openimages_rare_200_llm_tag_descriptions.json
 </pre>
 

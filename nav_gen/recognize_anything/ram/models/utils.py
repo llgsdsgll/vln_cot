@@ -128,7 +128,11 @@ class GroupWiseLinear(nn.Module):
 
 
 def init_tokenizer(text_encoder_type='bert-base-uncased'):
-    tokenizer = BertTokenizer.from_pretrained(text_encoder_type)
+    local_bert_dir = CONFIG_PATH.parents[2] / 'data' / 'models' / 'bert-large-uncased'
+    if text_encoder_type == 'bert-base-uncased' and local_bert_dir.exists():
+        tokenizer = BertTokenizer.from_pretrained(str(local_bert_dir), local_files_only=True)
+    else:
+        tokenizer = BertTokenizer.from_pretrained(text_encoder_type)
     tokenizer.add_special_tokens({'bos_token': '[DEC]'})
     tokenizer.add_special_tokens({'additional_special_tokens': ['[ENC]']})
     tokenizer.enc_token_id = tokenizer.additional_special_tokens_ids[0]

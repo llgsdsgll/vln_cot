@@ -1,1 +1,4 @@
 .DS_Store
+data/
+*.pyc
+nav_gen/smoke_runs/
