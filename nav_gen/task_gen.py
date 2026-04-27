@@ -10,6 +10,75 @@ import os
 
 from gpt import gpt4o_mini, gpt4o
 
+
+def _strip_code_fence(text):
+    text = text.strip()
+    if not text.startswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _strip_language_hint(text):
+    text = text.strip()
+    lower_text = text.lower()
+    for hint in ("json", "python"):
+        if lower_text == hint:
+            return ""
+        prefix = hint + "\n"
+        if lower_text.startswith(prefix):
+            return text[len(prefix):].strip()
+    return text
+
+
+def _extract_first_dict_block(text):
+    decoder = json.JSONDecoder()
+    for start_index, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            parsed_obj, end_index = decoder.raw_decode(text[start_index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed_obj, dict):
+            return text[start_index:start_index + end_index]
+    return None
+
+
+def _parse_task_output(task_text):
+    normalized_text = _strip_language_hint(_strip_code_fence(task_text))
+    candidates = []
+
+    for candidate in (task_text.strip(), normalized_text):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    dict_block = _extract_first_dict_block(normalized_text)
+    if dict_block and dict_block not in candidates:
+        candidates.append(dict_block)
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            parsed = ast.literal_eval(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except (ValueError, SyntaxError):
+            pass
+
+    raise ValueError(f"Failed to parse task output as dictionary: {task_text[:500]}")
+
 def sample_obj(scene_dic):
     for key, value in scene_dic.items():
         if len(value) <= 5:
@@ -171,12 +240,8 @@ def gen_task(args):
     print(prompt)
     
     task = gpt4o_mini(args, args.prompt_path + "system.txt", prompt)
-    if '```' in task:
-        task = task[3:-3]
-    if "python" in task:
-        task = task[6:]
     print(task)
-    task_dic = json.loads(task)
+    task_dic = _parse_task_output(task)
     task_dic["Robot"] = robot[0]
     task_dic["Scene"] = sample_scene[0]
     print(task_dic)

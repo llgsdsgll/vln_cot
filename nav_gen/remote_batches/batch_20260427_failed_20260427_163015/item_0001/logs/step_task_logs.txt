@@ -1,0 +1,24 @@
+2026-04-27 16:26:53,443 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,443 - split_task - INFO - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,443 - split_task - ERROR - Segment Trajectory: 0it [00:00, ?it/s]
+2026-04-27 16:26:53,443 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,443 - split_task - INFO - /home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427/item_0001/task/2/Could you bring the plate from the dining room and living room over to the bed in the bedroom, and then pick up the bedside lamp nearby
+2026-04-27 16:26:53,443 - split_task - ERROR - 
+2026-04-27 16:26:53,443 - split_task - ERROR - Segment Trajectory: 0it [00:00, ?it/s]
+2026-04-27 16:26:53,443 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,443 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,443 - split_task - INFO - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,444 - split_task - ERROR - Traceback (most recent call last):
+  File "/home/gs/my_project/LH-VLN/nav_gen/main.py", line 71, in <module>
+    main()
+  File "/home/gs/my_project/LH-VLN/nav_gen/main.py", line 65, in main
+    split_traj(args)
+  File "/home/gs/my_project/LH-VLN/nav_gen/split_task.py", line 342, in split_traj
+    action_dic, obs_dic = get_trail(task)
+  File "/home/gs/my_project/LH-VLN/nav_gen/split_task.py", line 123, in get_trail
+    actions = os.listdir(action_path)
+FileNotFoundError: [Errno 2] No such file or directory: '/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427/item_0001/task/2/Could you bring the plate from the dining room and living room over to the bed in the bedroom, and then pick up the bedside lamp nearby/success/trial_1'
+
+2026-04-27 16:26:53,453 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,453 - split_task - INFO - <split_task.LoggerWriter object at 0x75598403ab80>
+2026-04-27 16:26:53,453 - split_task - ERROR - <split_task.LoggerWriter object at 0x75598403ab80>

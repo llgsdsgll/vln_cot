@@ -1,0 +1,22 @@
+{
+    "Task instruction": "Could you bring the plate from the dining room and living room over to the bed in the bedroom, and then pick up the bedside lamp nearby",
+    "Subtask list": [
+        "Move_to('plate_11')",
+        "Grab('plate')",
+        "Move_to('bed_17')",
+        "Release('plate')",
+        "Grab('bedside lamp')"
+    ],
+    "Robot": "stretch",
+    "Scene": "00534-DBBESbk4Y3k",
+    "Object": [
+        [
+            "plate",
+            "Region 11: Tie: Dining room & Living room"
+        ],
+        [
+            "bed",
+            "Region 17: Bedroom"
+        ]
+    ]
+}

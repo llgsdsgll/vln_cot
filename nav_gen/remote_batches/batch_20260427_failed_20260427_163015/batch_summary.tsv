@@ -1,0 +1,2 @@
+item_id	status	local_item_dir	remote_run_dir
+item_0001	navgen_failed:1	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427/item_0001	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427

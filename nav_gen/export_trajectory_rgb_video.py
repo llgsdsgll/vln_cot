@@ -2,6 +2,9 @@ import argparse
 import json
 import math
 import os
+import re
+import shutil
+import subprocess
 import textwrap
 from types import SimpleNamespace
 
@@ -18,12 +21,61 @@ DEFAULT_HEIGHT = 744
 DEFAULT_SENSOR_HEIGHT = 1.0
 DEFAULT_HFOV = 86.0
 DEFAULT_FPS = 8
+DEFAULT_OUTPUT_CODEC = "h264"
 
 
 def _compute_vfov(hfov_deg, width, height):
     return math.degrees(
         2.0 * math.atan(math.tan(math.radians(hfov_deg / 2.0)) * (height / width))
     )
+
+
+def _resolve_ffmpeg_bin():
+    ffmpeg_bin = os.environ.get("NAVGEN_FFMPEG_BIN", "ffmpeg")
+    resolved = shutil.which(ffmpeg_bin)
+    return resolved or ffmpeg_bin
+
+
+def _build_output_paths(output_video, output_codec):
+    if output_codec == "mp4v":
+        return output_video, None
+    if output_codec == "h264":
+        raw_video = os.path.splitext(output_video)[0] + ".raw_mp4v.mp4"
+        return raw_video, output_video
+    raise ValueError(f"Unsupported output codec: {output_codec}")
+
+
+def _transcode_video_to_h264(raw_video, output_video):
+    ffmpeg_bin = _resolve_ffmpeg_bin()
+    command = [
+        ffmpeg_bin,
+        "-y",
+        "-i",
+        raw_video,
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        output_video,
+    ]
+    result = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "ffmpeg H.264 transcode failed for "
+            f"{raw_video} -> {output_video}\n{result.stderr.strip()}"
+        )
+    if not os.path.exists(output_video):
+        raise RuntimeError(f"ffmpeg did not create output video: {output_video}")
+    os.remove(raw_video)
+    return ffmpeg_bin
 
 
 def _build_args(project_root, width, height, sensor_height, hfov, sim_gpu_device, enable_front_semantic):
@@ -40,6 +92,91 @@ def _build_args(project_root, width, height, sensor_height, hfov, sim_gpu_device
         render_sensor_height=sensor_height,
         sensor_hfov=hfov,
     )
+
+
+def _parse_region_text(value):
+    if value is None:
+        return None, None
+    text = str(value).strip()
+    if not text:
+        return None, None
+
+    match = re.match(r"^Region\s+(\d+)\s*:\s*(.*)$", text)
+    if match:
+        return match.group(1), match.group(2).strip() or None
+    if text.isdigit():
+        return text, None
+    return None, text
+
+
+def _normalize_region_id(value):
+    if value is None:
+        return None
+    parsed_id, _ = _parse_region_text(value)
+    if parsed_id:
+        return parsed_id
+
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) > 1 and text[0].isalpha() and text[1:].isdigit():
+        return text[1:]
+    return text
+
+
+def _normalize_trial_targets(task_config):
+    objects = task_config.get("Object", [])
+    regions = task_config.get("Region", [])
+    region_names = task_config.get("Region Name", [])
+    target_count = max(
+        len(objects),
+        len(regions),
+        len(region_names),
+        len(task_config.get("trial", {})),
+    )
+
+    targets = []
+    for index in range(target_count):
+        category = None
+        region_id = None
+        region_name = None
+
+        if index < len(objects):
+            obj_entry = objects[index]
+            if isinstance(obj_entry, str):
+                category = obj_entry.strip() or None
+            elif isinstance(obj_entry, (list, tuple)):
+                if obj_entry:
+                    category = str(obj_entry[0]).strip() or None
+                if len(obj_entry) > 1:
+                    parsed_id, parsed_name = _parse_region_text(obj_entry[1])
+                    region_id = parsed_id or region_id
+                    region_name = parsed_name or region_name
+            elif obj_entry is not None:
+                category = str(obj_entry).strip() or None
+
+        if index < len(regions):
+            parsed_id, parsed_name = _parse_region_text(regions[index])
+            region_id = parsed_id or _normalize_region_id(regions[index])
+            region_name = parsed_name or region_name
+
+        if index < len(region_names) and region_names[index]:
+            region_name = str(region_names[index]).strip()
+
+        target_ref = category
+        if category and region_id:
+            target_ref = f"{category}_{region_id}"
+
+        targets.append(
+            {
+                "trial_index": index,
+                "category": category,
+                "region_id": region_id,
+                "region_name": region_name,
+                "target_ref": target_ref,
+            }
+        )
+    return targets
 
 
 def _sorted_trial_keys(task_config):
@@ -73,13 +210,14 @@ def _capture_frame(simulator, pos, yaw):
 
 def _flatten_entries(task_config):
     entries = []
-    targets = task_config.get("Object", [])
+    targets = _normalize_trial_targets(task_config)
     trial_keys = _sorted_trial_keys(task_config)
     for trial_index, trial_key in enumerate(trial_keys):
         trial = task_config["trial"][trial_key]
         pos_list = trial.get("pos", [])
         yaw_list = trial.get("yaw", [])
         action_list = trial.get("action", [])
+        target_info = targets[trial_index] if trial_index < len(targets) else {}
         entry_count = min(len(pos_list), len(yaw_list))
         if action_list:
             entry_count = min(entry_count, len(action_list))
@@ -92,7 +230,10 @@ def _flatten_entries(task_config):
                     "pos": pos_list[state_index],
                     "yaw": yaw_list[state_index],
                     "action": action_list[state_index] if action_list else None,
-                    "target": targets[trial_index] if trial_index < len(targets) else None,
+                    "target": target_info.get("category"),
+                    "target_region_id": target_info.get("region_id"),
+                    "target_region_name": target_info.get("region_name"),
+                    "target_ref": target_info.get("target_ref"),
                 }
             )
     return entries
@@ -116,7 +257,9 @@ def _overlay_lines(task_config, entry, frame_index, total_frames):
     ]
     if entry.get("action"):
         lines.append(f"Action: {entry['action']}")
-    if entry.get("target"):
+    if entry.get("target_ref"):
+        lines.append(f"Target: {entry['target_ref']}")
+    elif entry.get("target"):
         lines.append(f"Target: {entry['target']}")
     instruction = task_config.get("Task instruction")
     if instruction:
@@ -150,39 +293,321 @@ def _annotate_frame(frame, lines):
     return frame
 
 
-def _build_target_semantic_lookup(simulator, task_config):
-    target_names = set(task_config.get("Object", []))
-    semantic_lookup = {}
+def _semantic_region_id(region):
+    return _normalize_region_id(getattr(region, "id", None))
+
+
+def _as_float_list(values):
+    return [float(value) for value in values]
+
+
+def _collect_target_candidates(simulator, category, region_id=None):
+    wanted_region_id = _normalize_region_id(region_id)
+    candidates = []
+    for region in simulator.sim.semantic_scene.regions:
+        semantic_region_id = _semantic_region_id(region)
+        if wanted_region_id and semantic_region_id != wanted_region_id:
+            continue
+        for obj in region.objects:
+            try:
+                category_name = obj.category.name()
+            except Exception:
+                continue
+            if category and category_name != category:
+                continue
+
+            semantic_id = getattr(obj, "semantic_id", None)
+            center = getattr(getattr(obj, "aabb", None), "center", None)
+            if semantic_id is None or center is None:
+                continue
+
+            candidates.append(
+                {
+                    "semantic_id": int(semantic_id),
+                    "category": category_name,
+                    "region_id": semantic_region_id,
+                    "object_id": getattr(obj, "id", None),
+                    "center": np.array(center, dtype=np.float32),
+                }
+            )
+    return candidates
+
+
+def _collect_scene_candidates(simulator, category):
+    candidates = []
     for obj in simulator.sim.semantic_scene.objects:
         try:
             category_name = obj.category.name()
         except Exception:
             continue
-        if category_name not in target_names:
+        if category and category_name != category:
             continue
+
         semantic_id = getattr(obj, "semantic_id", None)
-        if semantic_id is None:
+        center = getattr(getattr(obj, "aabb", None), "center", None)
+        if semantic_id is None or center is None:
             continue
-        semantic_lookup[int(semantic_id)] = category_name
-    return semantic_lookup
+
+        candidates.append(
+            {
+                "semantic_id": int(semantic_id),
+                "category": category_name,
+                "region_id": None,
+                "object_id": getattr(obj, "id", None),
+                "center": np.array(center, dtype=np.float32),
+            }
+        )
+    return candidates
 
 
-def _extract_target_boxes(semantic_obs, semantic_lookup, min_pixels=25):
-    if semantic_obs is None or not semantic_lookup:
+def _snap_position(pathfinder, position):
+    snapped = pathfinder.snap_point(np.array(position, dtype=np.float32))
+    return np.array(snapped if snapped is not None else position, dtype=np.float32)
+
+
+def _candidate_distance_key(pathfinder, start_pos, end_pos):
+    start_nav = _snap_position(pathfinder, start_pos)
+    end_nav = _snap_position(pathfinder, end_pos)
+    path = habitat_sim.nav.ShortestPath()
+    path.requested_start = start_nav
+    path.requested_end = end_nav
+
+    if pathfinder.find_path(path):
+        return {
+            "rank": (0, float(path.geodesic_distance)),
+            "distance": float(path.geodesic_distance),
+            "strategy": "closest_geodesic",
+        }
+
+    planar_distance = math.dist(
+        [float(start_nav[0]), float(start_nav[2])],
+        [float(end_nav[0]), float(end_nav[2])],
+    )
+    return {
+        "rank": (1, float(planar_distance)),
+        "distance": float(planar_distance),
+        "strategy": "closest_planar_fallback",
+    }
+
+
+def _select_candidate_by_visibility(simulator, trial, candidates, min_pixels=25):
+    if not candidates:
+        return None
+
+    semantic_index = {candidate["semantic_id"]: candidate for candidate in candidates}
+    visibility_stats = {
+        semantic_id: {
+            "tail_area": 0,
+            "weighted_area": 0.0,
+            "max_area": 0,
+            "last_seen_index": -1,
+            "seen_frames": 0,
+        }
+        for semantic_id in semantic_index
+    }
+
+    pos_list = trial.get("pos", [])
+    yaw_list = trial.get("yaw", [])
+    frame_count = min(len(pos_list), len(yaw_list))
+    if frame_count == 0:
+        return None
+
+    tail_size = max(3, frame_count // 5)
+    tail_start = max(0, frame_count - tail_size)
+
+    for frame_index in range(frame_count):
+        _, semantic_obs = _capture_frame(simulator, pos_list[frame_index], yaw_list[frame_index])
+        if semantic_obs is None:
+            continue
+
+        visible_ids, visible_counts = np.unique(semantic_obs, return_counts=True)
+        for semantic_id, pixel_count in zip(visible_ids, visible_counts):
+            semantic_id = int(semantic_id)
+            pixel_count = int(pixel_count)
+            if semantic_id not in visibility_stats or pixel_count < min_pixels:
+                continue
+
+            stats = visibility_stats[semantic_id]
+            stats["weighted_area"] += float(pixel_count) * (
+                1.0 + frame_index / max(1, frame_count - 1)
+            )
+            if frame_index >= tail_start:
+                stats["tail_area"] += pixel_count
+            stats["max_area"] = max(stats["max_area"], pixel_count)
+            stats["last_seen_index"] = frame_index
+            stats["seen_frames"] += 1
+
+    ranked = []
+    for semantic_id, stats in visibility_stats.items():
+        if stats["seen_frames"] == 0:
+            continue
+        ranked.append(
+            (
+                (
+                    stats["tail_area"],
+                    stats["weighted_area"],
+                    stats["max_area"],
+                    stats["last_seen_index"],
+                    stats["seen_frames"],
+                ),
+                semantic_index[semantic_id],
+                stats,
+            )
+        )
+
+    if not ranked:
+        return None
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    _, candidate, stats = ranked[0]
+    return {
+        "candidate": candidate,
+        "stats": {
+            "tail_area": int(stats["tail_area"]),
+            "weighted_area": float(stats["weighted_area"]),
+            "max_area": int(stats["max_area"]),
+            "last_seen_index": int(stats["last_seen_index"]),
+            "seen_frames": int(stats["seen_frames"]),
+        },
+    }
+
+
+def _build_trial_target_lookup(simulator, task_config, scope):
+    trial_targets = _normalize_trial_targets(task_config)
+    trial_lookup = {}
+    resolution_info = []
+    trial_keys = _sorted_trial_keys(task_config)
+
+    for trial_index, trial_key in enumerate(trial_keys):
+        target_info = trial_targets[trial_index] if trial_index < len(trial_targets) else {}
+        category = target_info.get("category")
+        region_id = target_info.get("region_id")
+        label = target_info.get("target_ref") or category
+        trial = task_config["trial"][trial_key]
+        pos_list = trial.get("pos", [])
+        start_pos = pos_list[0] if pos_list else None
+
+        if not category:
+            resolution_info.append(
+                {
+                    "trial_key": trial_key,
+                    "trial_index": trial_index,
+                    "label": None,
+                    "scope": scope,
+                    "resolved": False,
+                    "reason": "missing_category",
+                }
+            )
+            continue
+
+        candidates = _collect_target_candidates(simulator, category=category, region_id=region_id)
+        candidate_source = "region"
+        if not candidates:
+            candidates = _collect_scene_candidates(simulator, category=category)
+            candidate_source = "scene"
+
+        if not candidates:
+            resolution_info.append(
+                {
+                    "trial_key": trial_key,
+                    "trial_index": trial_index,
+                    "label": label,
+                    "scope": scope,
+                    "resolved": False,
+                    "reason": "no_matching_semantic_object",
+                    "category": category,
+                    "region_id": region_id,
+                }
+            )
+            continue
+
+        if scope == "class":
+            semantic_ids = sorted({candidate["semantic_id"] for candidate in candidates})
+            semantic_labels = {semantic_id: label for semantic_id in semantic_ids}
+            selected_candidate = candidates[0]
+            strategy = "all_matching_objects_in_target_region"
+        else:
+            visibility_choice = _select_candidate_by_visibility(simulator, trial, candidates)
+            if visibility_choice is not None:
+                selected_candidate = visibility_choice["candidate"]
+                strategy = "most_visible_along_trial"
+                distance_value = None
+                visibility_stats = visibility_choice["stats"]
+            else:
+                visibility_stats = None
+                if start_pos is not None:
+                    ranked_candidates = []
+                    for candidate in candidates:
+                        distance_info = _candidate_distance_key(simulator.pathfinder, start_pos, candidate["center"])
+                        ranked_candidates.append(
+                            (
+                                distance_info["rank"],
+                                candidate,
+                                distance_info,
+                            )
+                        )
+                    ranked_candidates.sort(key=lambda item: item[0])
+                    _, selected_candidate, selected_distance = ranked_candidates[0]
+                    strategy = selected_distance["strategy"]
+                    distance_value = selected_distance["distance"]
+                else:
+                    selected_candidate = candidates[0]
+                    strategy = "first_matching_object"
+                    distance_value = None
+
+            semantic_ids = [selected_candidate["semantic_id"]]
+            semantic_labels = {selected_candidate["semantic_id"]: label}
+
+        trial_lookup[trial_index] = {
+            "label": label,
+            "scope": scope,
+            "semantic_ids": semantic_ids,
+            "semantic_labels": semantic_labels,
+        }
+
+        resolution_record = {
+            "trial_key": trial_key,
+            "trial_index": trial_index,
+            "label": label,
+            "category": category,
+            "region_id": region_id,
+            "scope": scope,
+            "resolved": True,
+            "candidate_count": len(candidates),
+            "candidate_source": candidate_source,
+            "selected_semantic_ids": semantic_ids,
+            "selected_object_id": selected_candidate.get("object_id"),
+            "selected_center": _as_float_list(selected_candidate["center"]),
+            "selection_strategy": strategy,
+        }
+        if scope == "instance" and start_pos is not None:
+            resolution_record["trial_start_pos"] = _as_float_list(start_pos)
+            if distance_value is not None:
+                resolution_record["selected_distance"] = float(distance_value)
+        if scope == "instance" and visibility_stats is not None:
+            resolution_record["visibility_stats"] = visibility_stats
+        resolution_info.append(resolution_record)
+
+    return trial_lookup, resolution_info
+
+
+def _extract_target_boxes(semantic_obs, target_spec, min_pixels=25):
+    if semantic_obs is None or not target_spec:
         return []
 
     boxes = []
-    unique_ids = np.unique(semantic_obs)
-    for semantic_id in unique_ids:
+    semantic_ids = set(target_spec.get("semantic_ids", []))
+    semantic_labels = target_spec.get("semantic_labels", {})
+    for semantic_id in np.unique(semantic_obs):
         semantic_id = int(semantic_id)
-        if semantic_id not in semantic_lookup:
+        if semantic_id not in semantic_ids:
             continue
         ys, xs = np.where(semantic_obs == semantic_id)
         if xs.size < min_pixels:
             continue
         boxes.append(
             {
-                "label": semantic_lookup[semantic_id],
+                "label": semantic_labels.get(semantic_id, target_spec.get("label", str(semantic_id))),
                 "semantic_id": semantic_id,
                 "bbox": (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
                 "area": int(xs.size),
@@ -247,6 +672,8 @@ def export_video(
     frame_mode="state",
     annotate=False,
     target_boxes=False,
+    target_box_scope="instance",
+    output_codec=DEFAULT_OUTPUT_CODEC,
 ):
     task_json_path = os.path.abspath(task_json_path)
     output_video = os.path.abspath(output_video)
@@ -270,25 +697,34 @@ def export_video(
         enable_front_semantic=target_boxes,
     )
     os.makedirs(os.path.dirname(output_video), exist_ok=True)
+    writer_output_video, final_output_video = _build_output_paths(output_video, output_codec)
 
     video_writer = cv2.VideoWriter(
-        output_video,
+        writer_output_video,
         cv2.VideoWriter_fourcc(*"mp4v"),
         fps,
         (width, height),
     )
     if not video_writer.isOpened():
-        raise RuntimeError(f"Failed to open video writer for {output_video}")
+        raise RuntimeError(f"Failed to open video writer for {writer_output_video}")
 
     simulator = SceneSimulator(args=args, config=task_config)
     timeline = _build_timeline(task_config, frame_mode)
-    semantic_lookup = _build_target_semantic_lookup(simulator, task_config) if target_boxes else {}
+    trial_target_lookup = {}
+    target_resolution = []
+    if target_boxes:
+        trial_target_lookup, target_resolution = _build_trial_target_lookup(
+            simulator,
+            task_config,
+            scope=target_box_scope,
+        )
     frame_count = 0
     labeled_frame_count = 0
     try:
         for frame_index, entry in enumerate(timeline):
             frame, semantic_obs = _capture_frame(simulator, entry["pos"], entry["yaw"])
-            boxes = _extract_target_boxes(semantic_obs, semantic_lookup) if target_boxes else []
+            target_spec = trial_target_lookup.get(entry["trial_index"])
+            boxes = _extract_target_boxes(semantic_obs, target_spec) if target_boxes else []
             if annotate:
                 frame = _annotate_frame(
                     frame,
@@ -303,9 +739,14 @@ def export_video(
         video_writer.release()
         simulator.sim.close()
 
+    ffmpeg_bin = None
+    if final_output_video is not None:
+        ffmpeg_bin = _transcode_video_to_h264(writer_output_video, final_output_video)
+
     metadata = {
         "task_json": task_json_path,
         "output_video": output_video,
+        "writer_output_video": writer_output_video,
         "frame_count": frame_count,
         "fps": fps,
         "width": width,
@@ -317,9 +758,15 @@ def export_video(
         "frame_mode": frame_mode,
         "annotate": annotate,
         "target_boxes": target_boxes,
-        "target_box_classes": sorted(set(semantic_lookup.values())),
+        "target_box_scope": target_box_scope,
+        "output_codec": output_codec,
+        "trial_targets": _normalize_trial_targets(task_config),
+        "resolved_target_boxes": target_resolution,
         "frames_with_target_boxes": labeled_frame_count,
     }
+    if ffmpeg_bin is not None:
+        metadata["ffmpeg_bin"] = ffmpeg_bin
+        metadata["video_codec_details"] = "libx264 + yuv420p + faststart"
     metadata_path = os.path.splitext(output_video)[0] + ".json"
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
@@ -339,6 +786,8 @@ def main():
     parser.add_argument("--frame_mode", choices=["state", "action"], default="state", help="state: one frame per saved state, action: one frame per executed action")
     parser.add_argument("--annotate", action="store_true", help="overlay frame, action, target, and task text")
     parser.add_argument("--target_boxes", action="store_true", help="draw 2D bounding boxes for visible target objects mentioned in the instruction")
+    parser.add_argument("--target_box_scope", choices=["instance", "class"], default="instance", help="instance: only the current trial's selected target instance, class: all matching objects for the current trial")
+    parser.add_argument("--output_codec", choices=["h264", "mp4v"], default=DEFAULT_OUTPUT_CODEC, help="h264: write a broadly compatible MP4 via ffmpeg, mp4v: keep the raw OpenCV mp4v output")
     cli_args = parser.parse_args()
 
     metadata = export_video(
@@ -353,6 +802,8 @@ def main():
         frame_mode=cli_args.frame_mode,
         annotate=cli_args.annotate,
         target_boxes=cli_args.target_boxes,
+        target_box_scope=cli_args.target_box_scope,
+        output_codec=cli_args.output_codec,
     )
     print(json.dumps(metadata, indent=2, ensure_ascii=False))
 

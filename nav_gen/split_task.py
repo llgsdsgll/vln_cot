@@ -120,6 +120,8 @@ class TrainDataset(Dataset):
 
 def get_trail(path):
     action_path = path + '/success/trial_1'
+    if not os.path.isdir(action_path):
+        return None, None
     actions = os.listdir(action_path)
     action_dic = {}
     for action in actions:
@@ -340,6 +342,9 @@ def split_traj(args):
     for task in tqdm(task_dataset, desc="Segment Trajectory"):
         print(task)
         action_dic, obs_dic = get_trail(task)
+        if not action_dic or not obs_dic:
+            print(f"Skip task without successful trajectory: {task}")
+            continue
         # print(obs_dic)
         # print(action_dic)
         start = 0
@@ -370,8 +375,15 @@ def split_traj(args):
 def gen_step_task(args):
     init_model(args)
     import ast
+    if not os.path.exists(args.split_save_path):
+        print(f"Split trajectory file not found, skip step-task generation: {args.split_save_path}")
+        return
+
     with open(args.split_save_path, 'r') as file:
         trail_list = [ast.literal_eval(line.strip()) for line in file]
-        
+    if not trail_list:
+        print(f"No segmented trajectories found in {args.split_save_path}, skip step-task generation")
+        return
+
     # print(trail_list)
     make_task(args, trail_list)

@@ -2,3 +2,4 @@
 data/
 *.pyc
 nav_gen/smoke_runs/
+nav_gen/remote_batches/

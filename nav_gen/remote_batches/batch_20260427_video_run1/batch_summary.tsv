@@ -1,0 +1,6 @@
+item_id	status	success_progress	step_task_json_count	video_count	video_status	local_item_dir	remote_run_dir
+item_0001	navgen_failed:1	0/1	0	0	skipped	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427_video_run1/item_0001	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427_video_run1
+item_0002	no_success_task	0/1	0	0	skipped	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427_video_run1/item_0002	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427_video_run1
+item_0003	no_success_task	0/1	0	0	skipped	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427_video_run1/item_0003	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427_video_run1
+item_0004	no_success_task	0/1	0	0	skipped	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427_video_run1/item_0004	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427_video_run1
+item_0005	ok	1/1	3	1	ok:1	/home/gs/my_project/LH-VLN/nav_gen/remote_batches/batch_20260427_video_run1/item_0005	root@139.196.171.150:/mnt/data-cpfs/gengshuang/lhvln_dataset/batch_20260427_video_run1

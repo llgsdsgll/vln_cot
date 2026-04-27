@@ -1,0 +1,141 @@
+{
+  "task_json": "/home/gs/my_project/LH-VLN/nav_gen/smoke_runs/5traj_20260423_160914/task/3/Please head to the kitchen and pick up the box. Bring it over to the couch in the living room and set it down. After that, go back to the kitchen and pick up the dish/success/trial_1/task.json",
+  "output_video": "/home/gs/my_project/LH-VLN/nav_gen/_tmp_test_export/trajectory_rgb.mp4",
+  "frame_count": 60,
+  "fps": 1,
+  "width": 1280,
+  "height": 744,
+  "sensor_height_m": 1.0,
+  "horizontal_fov_deg": 86.0,
+  "vertical_fov_deg": 56.91754603993676,
+  "yaw_mapping": "world_angle_deg = saved_yaw_deg - 180",
+  "frame_mode": "action",
+  "annotate": true,
+  "target_boxes": true,
+  "target_box_scope": "instance",
+  "trial_targets": [
+    {
+      "trial_index": 0,
+      "category": "box",
+      "region_id": "11",
+      "region_name": "Kitchen",
+      "target_ref": "box_11"
+    },
+    {
+      "trial_index": 1,
+      "category": "couch",
+      "region_id": "12",
+      "region_name": "Living room",
+      "target_ref": "couch_12"
+    },
+    {
+      "trial_index": 2,
+      "category": "dish",
+      "region_id": "11",
+      "region_name": "Kitchen",
+      "target_ref": "dish_11"
+    }
+  ],
+  "resolved_target_boxes": [
+    {
+      "trial_key": "trial_0",
+      "trial_index": 0,
+      "label": "box_11",
+      "category": "box",
+      "region_id": "11",
+      "scope": "instance",
+      "resolved": true,
+      "candidate_count": 1,
+      "candidate_source": "scene",
+      "selected_semantic_ids": [
+        341
+      ],
+      "selected_object_id": "box_341",
+      "selected_center": [
+        3.7542240619659424,
+        0.8808512091636658,
+        -7.404540061950684
+      ],
+      "selection_strategy": "most_visible_along_trial",
+      "trial_start_pos": [
+        1.2399822473526,
+        -0.0013566017150878906,
+        -8.623109817504883
+      ],
+      "visibility_stats": {
+        "tail_area": 7985,
+        "weighted_area": 23990.888888888887,
+        "max_area": 2889,
+        "last_seen_index": 9,
+        "seen_frames": 7
+      }
+    },
+    {
+      "trial_key": "trial_1",
+      "trial_index": 1,
+      "label": "couch_12",
+      "category": "couch",
+      "region_id": "12",
+      "scope": "instance",
+      "resolved": true,
+      "candidate_count": 2,
+      "candidate_source": "scene",
+      "selected_semantic_ids": [
+        382
+      ],
+      "selected_object_id": "couch_382",
+      "selected_center": [
+        4.02860164642334,
+        0.27428752183914185,
+        -4.993323802947998
+      ],
+      "selection_strategy": "most_visible_along_trial",
+      "trial_start_pos": [
+        2.1060075759887695,
+        -0.0013566017150878906,
+        -8.123109817504883
+      ],
+      "visibility_stats": {
+        "tail_area": 494838,
+        "weighted_area": 1047638.7692307692,
+        "max_area": 122144,
+        "last_seen_index": 26,
+        "seen_frames": 12
+      }
+    },
+    {
+      "trial_key": "trial_2",
+      "trial_index": 2,
+      "label": "dish_11",
+      "category": "dish",
+      "region_id": "11",
+      "scope": "instance",
+      "resolved": true,
+      "candidate_count": 1,
+      "candidate_source": "scene",
+      "selected_semantic_ids": [
+        340
+      ],
+      "selected_object_id": "dish_340",
+      "selected_center": [
+        3.7412543296813965,
+        0.7627167105674744,
+        -7.434539794921875
+      ],
+      "selection_strategy": "most_visible_along_trial",
+      "trial_start_pos": [
+        1.4828076362609863,
+        -0.0013566017150878906,
+        -5.746516227722168
+      ],
+      "visibility_stats": {
+        "tail_area": 6792,
+        "weighted_area": 20192.608695652176,
+        "max_area": 2061,
+        "last_seen_index": 23,
+        "seen_frames": 9
+      }
+    }
+  ],
+  "frames_with_target_boxes": 28
+}
