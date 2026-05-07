@@ -25,7 +25,7 @@ def eval_for_one_task(args, config):
     obj = []        # finished target object
     
     for i in range(len(task_sim.target)):
-        _, _, _, _, k = task_sim.get_info(i)
+        _, _, _, _, _, k = task_sim.get_info(i)
         if math.isinf(k):
             return config['Task instruction']
         if i == 0:
@@ -35,11 +35,14 @@ def eval_for_one_task(args, config):
     for step in range(args.max_step): 
         # get the current target and geo_dis
         obj_target = task_sim.target[success]
-        coord_list = task_sim.get_coord(obj_target)
-        if not(coord_list):
+        geo_dis, coord, best_candidate = task_sim.get_goal_info(success)
+        if coord is None:
+            if best_candidate is not None and best_candidate.get("goal_type") == "no_visible_viewpoint":
+                print(
+                    "***** target %s has no visible goal viewpoint in the scene; marking task unreachable *****"
+                    % obj_target
+                )
             return config['Task instruction']
-        snap_coord_list = [task_sim.pathfinder.snap_point(coord) for coord in coord_list]
-        geo_dis, coord = task_sim.geodesic_distance(snap_coord_list)
 
         if math.isinf(geo_dis):
             return config['Task instruction']
@@ -62,38 +65,75 @@ def eval_for_one_task(args, config):
     
 
         # termination
-        if geo_dis < args.success_dis:  # success
-            obj.append(obj_target)  # add finished target
-            success = success + 1
+        if geo_dis < args.success_dis:
+            visibility = task_sim.get_target_visibility(
+                success,
+                min_pixels=getattr(args, "success_visible_pixels", 25),
+            )
+            if visibility["visible"] or getattr(args, "allow_stop_without_visibility", False):
+                obj.append(obj_target)  # add finished target
+                success = success + 1
 
-            # record the trial
-            action = 'stop'
+                # record the trial
+                action = 'stop'
 
-            config['trial'][key]['pos'].append(pos.tolist())
-            config['trial'][key]['yaw'].append(yaw)
-            config['trial'][key]['action'].append(action)
-            obs = task_sim.actor(action, step-1, success-1)
+                config['trial'][key]['pos'].append(pos.tolist())
+                config['trial'][key]['yaw'].append(yaw)
+                config['trial'][key]['action'].append(action)
+                obs = task_sim.actor(action, step-1, success-1)
 
-            print("\n***** nav to %s success! *****\n" % obj_target)
-            if len(nav_step) == 0:
-                nav_step.append(step)
+                print("\n***** nav to %s success! *****\n" % obj_target)
+                if len(nav_step) == 0:
+                    nav_step.append(step)
+                else:
+                    former = nav_step[-1]
+                    nav_step.append(step-former)
+                    
+                if success == len(task_sim.target):
+                    break
+                    
+                _, _, _, _, _, geo_dis = task_sim.get_info(success)
+                config['Geo dis'].append(geo_dis)
             else:
-                former = nav_step[-1]
-                nav_step.append(step-former)
-                
-            if success == len(task_sim.target):
-                break
-                
-            _, _, _, _, geo_dis = task_sim.get_info(success)
-            config['Geo dis'].append(geo_dis)
+                print(
+                    "***** within success distance of %s, but target is not visible in front view "
+                    "(max pixels: %d, required: %d, reason: %s) *****"
+                    % (
+                        obj_target,
+                        visibility["max_pixels"],
+                        visibility["required_pixels"],
+                        visibility["reason"],
+                    )
+                )
             
         # get the current target
-        obj_target, coord, position, yaw, geo_dis = task_sim.get_info(success)
+        obj_target, coord, goal_meta, position, yaw, geo_dis = task_sim.get_info(success)
 
         if math.isinf(geo_dis):
             return config['Task instruction']
 
-        action = task_sim.get_next_action(coord)
+        if geo_dis < args.success_dis and not getattr(args, "allow_stop_without_visibility", False):
+            visibility = task_sim.get_target_visibility(
+                success,
+                min_pixels=getattr(args, "success_visible_pixels", 25),
+            )
+            if not visibility["visible"]:
+                action = task_sim.get_goal_pose_alignment_action(
+                    goal_meta.get("center") if goal_meta else None,
+                    goal_meta.get("goal_yaw") if goal_meta else None,
+                )
+                if action is None:
+                    action = task_sim.get_visibility_search_action(
+                        goal_meta.get("center") if goal_meta else None
+                    )
+                print(
+                    "***** near %s but still not visible in front view, using local search action: %s *****"
+                    % (obj_target, action)
+                )
+            else:
+                action = task_sim.get_next_action(coord)
+        else:
+            action = task_sim.get_next_action(coord)
         obs = task_sim.actor(action, step, success)
 
     # save data

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+START_TIME=$(date +%s)
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -29,7 +31,9 @@ Wrapper options:
   --video-fps N                Exported video fps. Default: 1
   --video-width N              Exported video width. Default: 1280
   --video-height N             Exported video height. Default: 744
-  --video-sensor-height M      Camera height in meters. Default: 1.0
+  --render-sensor-height M     Shared camera / semantic sensor height in meters
+                               for both NavGen and exported videos. Default: 1.0
+  --video-sensor-height M      Alias of --render-sensor-height.
   --video-hfov DEG             Horizontal FOV in degrees. Default: 86.0
   --video-frame-mode MODE      state|action. Default: action
   --video-codec CODEC          h264|mp4v. Default: h264
@@ -81,18 +85,20 @@ RUN_NAME_DEFAULT="navgen_batch_$(date +%Y%m%d_%H%M%S)"
 RUN_NAME=""
 KEEP_LOCAL_ITEM=0
 CLEANUP_LOCAL=0
-VIDEO_EXPORT=0
+VIDEO_EXPORT=1
 VIDEO_SUBDIR="videos_action1fps_boxes"
 VIDEO_FPS=1
 VIDEO_WIDTH=1280
 VIDEO_HEIGHT=744
-VIDEO_SENSOR_HEIGHT=1.0
+RENDER_SENSOR_HEIGHT=1.0
 VIDEO_HFOV=86.0
 VIDEO_FRAME_MODE="action"
 VIDEO_CODEC="h264"
 VIDEO_ANNOTATE=1
 VIDEO_TARGET_BOXES=1
 VIDEO_TARGET_BOX_SCOPE="instance"
+VIZ_EXPORT=1
+VIZ_SUBDIR="viz_topdown"
 NAVGEN_ARGS=()
 FORWARDED_ARGS=()
 LOOP_COUNT=""
@@ -162,8 +168,8 @@ while [[ $# -gt 0 ]]; do
       VIDEO_HEIGHT="${2:?missing value for --video-height}"
       shift 2
       ;;
-    --video-sensor-height)
-      VIDEO_SENSOR_HEIGHT="${2:?missing value for --video-sensor-height}"
+    --render-sensor-height|--video-sensor-height)
+      RENDER_SENSOR_HEIGHT="${2:?missing value for $1}"
       shift 2
       ;;
     --video-hfov)
@@ -215,7 +221,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      NAVGEN_ARGS+=("$1")
+      [[ -n "$1" ]] && NAVGEN_ARGS+=("$1")
       shift
       ;;
   esac
@@ -248,6 +254,17 @@ while [[ ${#NAVGEN_ARGS[@]} -gt 0 ]]; do
       fi
       echo "[WARN] Ignoring forwarded $arg because this wrapper manages per-item paths." >&2
       NAVGEN_ARGS=("${NAVGEN_ARGS[@]:1}")
+      ;;
+    --render_sensor_height)
+      if [[ ${#NAVGEN_ARGS[@]} -eq 0 ]]; then
+        echo "missing value for --render_sensor_height" >&2
+        exit 1
+      fi
+      RENDER_SENSOR_HEIGHT="${NAVGEN_ARGS[0]}"
+      NAVGEN_ARGS=("${NAVGEN_ARGS[@]:1}")
+      ;;
+    --render_sensor_height=*)
+      RENDER_SENSOR_HEIGHT="${arg#--render_sensor_height=}"
       ;;
     --task_path=*|--step_task_path=*|--ram_logs=*|--split_save_path=*)
       echo "[WARN] Ignoring forwarded ${arg%%=*} because this wrapper manages per-item paths." >&2
@@ -476,6 +493,12 @@ sync_item() {
     sync_dir_contents "$item_video_dir" "${REMOTE_RUN_DIR}/videos/${item_id}/${VIDEO_SUBDIR}"
   fi
 
+  local item_viz_dir="$item_dir/$VIZ_SUBDIR"
+  if [[ -d "$item_viz_dir" ]] && [[ -n "$(find "$item_viz_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$REMOTE_RUN_DIR/viz/$item_id/$VIZ_SUBDIR'"
+    sync_dir_contents "$item_viz_dir" "${REMOTE_RUN_DIR}/viz/${item_id}/${VIZ_SUBDIR}"
+  fi
+
   sync_summary
 }
 
@@ -552,7 +575,7 @@ export_item_videos() {
       --fps "$VIDEO_FPS"
       --width "$VIDEO_WIDTH"
       --height "$VIDEO_HEIGHT"
-      --sensor_height "$VIDEO_SENSOR_HEIGHT"
+      --sensor_height "$RENDER_SENSOR_HEIGHT"
       --hfov "$VIDEO_HFOV"
       --sim_gpu_device "$SIM_GPU_DEVICE"
       --frame_mode "$VIDEO_FRAME_MODE"
@@ -594,6 +617,84 @@ export_item_videos() {
   return 0
 }
 
+export_item_viz() {
+  local item_id="$1"
+  local item_dir="$2"
+  local item_task_dir="$item_dir/task"
+  local item_viz_dir="$item_dir/$VIZ_SUBDIR"
+  local item_viz_log="$item_dir/logs/viz_export.log"
+
+  if [[ "$VIZ_EXPORT" -eq 0 ]]; then
+    return 0
+  fi
+
+  mkdir -p "$item_viz_dir"
+  : > "$item_viz_log"
+
+  while IFS= read -r -d '' task_json; do
+    local rel_task_json="${task_json#$item_task_dir/}"
+    local rel_task_dir
+    rel_task_dir="$(dirname "$rel_task_json")"
+    local out_png="$item_viz_dir/$rel_task_dir/topdown.png"
+    mkdir -p "$(dirname "$out_png")"
+
+    echo "[INFO] Exporting viz for ${item_id}: ${rel_task_json}" | tee -a "$item_viz_log"
+
+    local viz_cmd=(
+      "$CONDA_EXE" run -n "$CONDA_ENV" env
+      NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
+      python visualize_goal_viewpoints_topdown.py
+      --task-json "$task_json"
+      --output "$out_png"
+      --render-sensor-height "$RENDER_SENSOR_HEIGHT"
+      --allow-occluded-goal-fallback
+      --sim-gpu-device "$SIM_GPU_DEVICE"
+    )
+
+    local traj_meta
+    traj_meta="$(dirname "$task_json")/trajectory_rgb.json"
+    if [[ -f "$traj_meta" ]]; then
+      viz_cmd+=(--trajectory-meta "$traj_meta")
+    fi
+
+    set +e
+    "${viz_cmd[@]}" >> "$item_viz_log" 2>&1
+    local viz_status=$?
+    set -e
+
+    if [[ "$viz_status" -ne 0 ]]; then
+      echo "[WARN] Viz export failed for ${rel_task_json}; exit=${viz_status}" | tee -a "$item_viz_log" >&2
+    fi
+  done < <(find "$item_task_dir" -path '*/success/trial_1/task.json' -print0 2>/dev/null)
+
+  while IFS= read -r -d '' config_json; do
+    local config_dir; config_dir="$(dirname "$config_json")"
+    [[ -d "$config_dir/success" ]] && continue
+    local rel_config="${config_json#$item_task_dir/}"
+    local rel_dir; rel_dir="$(dirname "$rel_config")"
+    local out_png="$item_viz_dir/$rel_dir/topdown.png"
+    mkdir -p "$(dirname "$out_png")"
+    echo "[INFO] Exporting viz (fail) for ${item_id}: ${rel_config}" | tee -a "$item_viz_log"
+    local fail_viz_cmd=(
+      "$CONDA_EXE" run -n "$CONDA_ENV" env
+      NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
+      python visualize_goal_viewpoints_topdown.py
+      --task-json "$config_json"
+      --output "$out_png"
+      --render-sensor-height "$RENDER_SENSOR_HEIGHT"
+      --allow-occluded-goal-fallback
+      --sim-gpu-device "$SIM_GPU_DEVICE"
+    )
+    set +e
+    "${fail_viz_cmd[@]}" >> "$item_viz_log" 2>&1
+    local fail_viz_status=$?
+    set -e
+    if [[ "$fail_viz_status" -ne 0 ]]; then
+      echo "[WARN] Viz (fail) export failed for ${rel_config}; exit=${fail_viz_status}" | tee -a "$item_viz_log" >&2
+    fi
+  done < <(find "$item_task_dir" -name 'config.json' -print0 2>/dev/null)
+}
+
 echo "[INFO] Project root      : $PROJECT_ROOT"
 echo "[INFO] Conda env         : $CONDA_ENV"
 echo "[INFO] Local batch dir   : $LOCAL_RUN_DIR"
@@ -603,8 +704,9 @@ echo "[INFO] RAM device        : $RAM_DEVICE"
 echo "[INFO] Export videos     : $VIDEO_EXPORT"
 if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
   echo "[INFO] Video subdir      : $VIDEO_SUBDIR"
-  echo "[INFO] Video params      : fps=${VIDEO_FPS}, size=${VIDEO_WIDTH}x${VIDEO_HEIGHT}, sensor_height=${VIDEO_SENSOR_HEIGHT}, hfov=${VIDEO_HFOV}, frame_mode=${VIDEO_FRAME_MODE}, codec=${VIDEO_CODEC}, annotate=${VIDEO_ANNOTATE}, target_boxes=${VIDEO_TARGET_BOXES}, scope=${VIDEO_TARGET_BOX_SCOPE}"
+  echo "[INFO] Video params      : fps=${VIDEO_FPS}, size=${VIDEO_WIDTH}x${VIDEO_HEIGHT}, sensor_height=${RENDER_SENSOR_HEIGHT}, hfov=${VIDEO_HFOV}, frame_mode=${VIDEO_FRAME_MODE}, codec=${VIDEO_CODEC}, annotate=${VIDEO_ANNOTATE}, target_boxes=${VIDEO_TARGET_BOXES}, scope=${VIDEO_TARGET_BOX_SCOPE}"
 fi
+echo "[INFO] Sensor height    : $RENDER_SENSOR_HEIGHT"
 echo "[INFO] Target successes  : $LOOP_COUNT"
 if [[ "$MAX_ATTEMPTS" -eq 0 ]]; then
   echo "[INFO] Max attempts      : unlimited"
@@ -653,6 +755,7 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
     python main.py \
       "${FORWARDED_ARGS[@]}" \
       --loop 1 \
+      --render_sensor_height "$RENDER_SENSOR_HEIGHT" \
       --task_path "${item_task_dir}/" \
       --step_task_path "${item_step_task_dir}/" \
       --ram_logs "$item_ram_log" \
@@ -696,6 +799,8 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
     fi
   fi
 
+  export_item_viz "$item_id" "$item_dir"
+
   if [[ "$item_success" -eq 1 ]]; then
     echo "[INFO] ${item_id} produced a successful task (${success_count}/${LOOP_COUNT}); step-task jsons: ${step_task_json_count}; videos: ${video_count}"
   else
@@ -728,5 +833,6 @@ fi
 echo "[INFO] NavGen batch completed successfully."
 echo "[INFO] Success count : ${success_count}/${LOOP_COUNT}"
 echo "[INFO] Attempt count : ${attempt_count}"
+echo "[INFO] Elapsed time  : $(( $(date +%s) - START_TIME ))s"
 echo "[INFO] Local output : $LOCAL_RUN_DIR"
 echo "[INFO] Remote output: ${REMOTE_SPEC}:${REMOTE_RUN_DIR}"

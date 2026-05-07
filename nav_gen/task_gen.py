@@ -185,9 +185,11 @@ def gen_task(args):
     scene_region = read_scene(args.region_file)
 
     if args.scene_id:
-        sample_scene = args.scene_id
+        sample_scene = [args.scene_id]
     else:
-        sample_scene = random.sample(scene_region.keys(), 1)
+        import glob
+        valid_scenes = {os.path.basename(p)[:-4] for p in glob.glob(args.scene_path + "*.txt")}
+        sample_scene = random.sample(sorted(valid_scenes & set(scene_region.keys())), 1)
     robot_list = ['spot', 'stretch']
     robot = random.sample(robot_list, 1)
 
@@ -272,10 +274,7 @@ def gen_task(args):
     if task_dic['Task instruction'].endswith('.') or task_dic['Task instruction'].endswith('?'):
         task_dic['Task instruction'] = task_dic['Task instruction'][:- 1]
     file = task_dic['Task instruction']
-    if not os.path.isdir(args.task_path + str(length)):
-        os.mkdir(args.task_path + str(length))
-    if not os.path.isdir(args.task_path + str(length) + '/' + file):
-        os.mkdir(args.task_path + str(length) + '/' + file)
+    os.makedirs(args.task_path + str(length) + '/' + file, exist_ok=True)
     with open(args.task_path + str(length) + '/' + file + '/config.json', 'w') as json_file:
         json.dump(task_dic, json_file, indent=4)
     print("saved")

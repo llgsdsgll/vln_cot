@@ -414,13 +414,17 @@ config['trial']['trial_i']['pos'/'yaw'/'action']
 
 ### 7.3 成功判定
 
-如果：
+当前默认不是只看距离了，而是同时满足：
 
 ```python
 geo_dis < args.success_dis
+and target_is_visible_in_front_view
 ```
 
-则认为当前子目标成功。
+其中 `target_is_visible_in_front_view` 是通过前视角 semantic sensor 判断的，
+默认要求目标实例在前视角里至少有 `25` 个 semantic pixel。
+
+只有这两个条件都满足，当前子目标才会被判成功。
 
 这时会：
 
@@ -438,13 +442,21 @@ geo_dis < args.success_dis
 如果当前子目标还没完成：
 
 1. 调用 `get_info(success)` 获取目标位置
-2. 调用：
+2. 如果已经进入 `success_dis` 范围，但前视角里还看不到目标：
+
+```python
+action = task_sim.get_visibility_search_action(goal_center)
+```
+
+也就是先做一个近距离局部搜索，让机器人转向或再向前挪一步，直到目标真正进入 front view。
+
+3. 否则调用：
 
 ```python
 action = task_sim.get_next_action(coord)
 ```
 
-3. 再调用：
+4. 再调用：
 
 ```python
 task_sim.actor(action, step, success)
@@ -814,4 +826,3 @@ scene/*.txt + region CSV + prompt/*
 10. `nav_gen/export_trajectory_rgb_video.py`
 
 这样读下来，逻辑上最顺。
-

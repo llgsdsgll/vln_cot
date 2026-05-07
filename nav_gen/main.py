@@ -36,8 +36,16 @@ def read_args():
     parser.add_argument('--scene', type=str, default=project_path + '/data/hm3d/', help="scene path")
     parser.add_argument('--scene_dataset', type=str, default=project_path + '/data/hm3d/hm3d_annotated_basis.scene_dataset_config.json', help="scene dataset path")
     parser.add_argument('--sim_gpu_device', type=int, default=int(os.environ.get('NAVGEN_SIM_GPU_DEVICE', 0)), help="GPU device id for Habitat-Sim")
+    parser.add_argument('--render_sensor_height', type=float, default=None, help="camera / semantic sensor height in meters; defaults to the robot-specific height")
     parser.add_argument('--max_step', type=int, default=500, help="max step for record")
     parser.add_argument('--success_dis', type=float, default=1, help="distance to be considered as success")
+    parser.add_argument('--success_visible_pixels', type=int, default=25, help="minimum front semantic pixels required before a target can be treated as visible for success")
+    parser.add_argument('--allow_stop_without_visibility', action='store_true', help="fall back to the old distance-only success rule")
+    parser.add_argument('--allow_occluded_goal_fallback', action='store_true', help="fall back to snapped object-center goals when no visible target viewpoint can be found")
+    parser.add_argument('--success_view_radius_min', type=float, default=0.75, help="minimum radius when sampling visible target viewpoints")
+    parser.add_argument('--success_view_radius_max', type=float, default=2.5, help="maximum radius when sampling visible target viewpoints")
+    parser.add_argument('--success_view_radius_step', type=float, default=0.5, help="radius step when sampling visible target viewpoints")
+    parser.add_argument('--success_view_angle_step', type=float, default=30.0, help="angle step in degrees when sampling visible target viewpoints")
 
     # step
     parser.add_argument('--step_task_path', type=str, default=nav_gen_path + '/step_task/', help="root task path")

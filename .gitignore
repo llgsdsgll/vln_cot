@@ -3,3 +3,10 @@ data/
 *.pyc
 nav_gen/smoke_runs/
 nav_gen/remote_batches/
+nav_gen/smoke_out_single/
+nav_gen/visualize_task_rviz/extracted/
+nav_gen/visualize_task_rviz/extracted_depth_example/
+nav_gen/visualize_task_rviz/extracted_mesh_example/
+nav_gen/visualize_task_rviz/extracted_remote_handbag_table/
+nav_gen/visualize_task_rviz/remote_handbag_table_task/
+nav_gen/analysis_outputs/

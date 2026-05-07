@@ -23,7 +23,8 @@ def make_setting(args, scene_file, robot):
         default_sensor_height = 1.0
     width = int(getattr(args, "render_width", 512))
     height = int(getattr(args, "render_height", 512))
-    sensor_height = float(getattr(args, "render_sensor_height", default_sensor_height))
+    sensor_height_arg = getattr(args, "render_sensor_height", None)
+    sensor_height = float(default_sensor_height if sensor_height_arg is None else sensor_height_arg)
     sensor_hfov = float(getattr(args, "sensor_hfov", 90.0))
     sim_settings = {
         "width": width,  # Spatial resolution of the observations

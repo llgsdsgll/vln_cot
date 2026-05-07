@@ -73,15 +73,20 @@ def _extract_message_text(message):
     return str(content)
 
 
-def _chat_completion(args, model, messages):
+def _chat_completion(args, model, messages, max_retries=3):
+    import time
     client = _make_client(args)
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-    )
-    if not response.choices:
-        raise RuntimeError("The model returned no choices.")
-    return _extract_message_text(response.choices[0].message)
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(model=model, messages=messages)
+            if not response.choices:
+                raise RuntimeError("The model returned no choices.")
+            return _extract_message_text(response.choices[0].message)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+            client = _make_client(args)
 
 
 def gpt4o(args, prompt_path, ex_prompt):   # It is gpt4-o

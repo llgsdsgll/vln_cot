@@ -117,10 +117,11 @@ def _normalize_region_id(value):
         return parsed_id
 
     text = str(value).strip()
-    if not text:
+    if not text or text == "_-1":
         return None
-    if len(text) > 1 and text[0].isalpha() and text[1:].isdigit():
-        return text[1:]
+    match = re.search(r"(\d+)$", text)
+    if match:
+        return match.group(1)
     return text
 
 
@@ -362,7 +363,12 @@ def _collect_scene_candidates(simulator, category):
 
 def _snap_position(pathfinder, position):
     snapped = pathfinder.snap_point(np.array(position, dtype=np.float32))
-    return np.array(snapped if snapped is not None else position, dtype=np.float32)
+    if snapped is None:
+        return np.array(position, dtype=np.float32)
+    snapped = np.array(snapped, dtype=np.float32).reshape(-1)
+    if snapped.size != 3 or not np.all(np.isfinite(snapped)):
+        return np.array(position, dtype=np.float32)
+    return snapped
 
 
 def _candidate_distance_key(pathfinder, start_pos, end_pos):
@@ -602,17 +608,21 @@ def _extract_target_boxes(semantic_obs, target_spec, min_pixels=25):
         semantic_id = int(semantic_id)
         if semantic_id not in semantic_ids:
             continue
-        ys, xs = np.where(semantic_obs == semantic_id)
-        if xs.size < min_pixels:
-            continue
-        boxes.append(
-            {
-                "label": semantic_labels.get(semantic_id, target_spec.get("label", str(semantic_id))),
-                "semantic_id": semantic_id,
-                "bbox": (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
-                "area": int(xs.size),
-            }
-        )
+        mask = (semantic_obs == semantic_id).astype(np.uint8)
+        n, labels = cv2.connectedComponents(mask)
+        label_str = semantic_labels.get(semantic_id, target_spec.get("label", str(semantic_id)))
+        for comp_id in range(1, n):
+            ys, xs = np.where(labels == comp_id)
+            if xs.size < min_pixels:
+                continue
+            boxes.append(
+                {
+                    "label": label_str,
+                    "semantic_id": semantic_id,
+                    "bbox": (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())),
+                    "area": int(xs.size),
+                }
+            )
     boxes.sort(key=lambda item: item["area"], reverse=True)
     return boxes
 
@@ -629,10 +639,17 @@ def _color_for_label(label):
     return palette[sum(ord(ch) for ch in label) % len(palette)]
 
 
-def _draw_target_boxes(frame, boxes):
+def _draw_target_boxes(frame, boxes, semantic_obs=None):
     for box in boxes:
         x1, y1, x2, y2 = box["bbox"]
         color = _color_for_label(box["label"])
+        if semantic_obs is not None:
+            mask = (semantic_obs == box["semantic_id"]).astype(np.uint8)
+            overlay = frame.copy()
+            overlay[mask == 1] = (
+                overlay[mask == 1] * 0.5 + np.array(color[::-1], dtype=np.float32) * 0.5
+            ).astype(np.uint8)
+            cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
         label_text = box["label"]
@@ -731,7 +748,7 @@ def export_video(
                     _overlay_lines(task_config, entry, frame_index, len(timeline)),
                 )
             if boxes:
-                frame = _draw_target_boxes(frame, boxes)
+                frame = _draw_target_boxes(frame, boxes, semantic_obs=semantic_obs)
                 labeled_frame_count += 1
             video_writer.write(frame)
             frame_count += 1

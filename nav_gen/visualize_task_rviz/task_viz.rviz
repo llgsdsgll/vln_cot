@@ -1,0 +1,36 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Displays:
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PointCloud
+      Topic:
+        Value: /task/pointcloud
+      Size (m): 0.02
+      Style: Points
+      Color Transformer: RGB8
+      Enabled: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Navmesh
+      Topic:
+        Value: /task/navmesh
+      Enabled: true
+    - Class: rviz_default_plugins/Marker
+      Name: Trajectory
+      Topic:
+        Value: /task/trajectory
+      Enabled: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Targets
+      Topic:
+        Value: /task/targets
+      Enabled: true
+  Global Options:
+    Fixed Frame: map
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 50

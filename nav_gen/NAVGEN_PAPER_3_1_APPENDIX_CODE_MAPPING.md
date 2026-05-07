@@ -326,7 +326,7 @@ task/.../success/trial_1/<step>_<action>_for_<target>/
 
 1. 论文写 GPT-4，当前代码默认是 `qwen3.6-plus`
 2. 论文写 `OR(M, E)`，当前代码只实现了 `E`
-3. 论文里成功定义包含距离和视野条件，当前生成代码里主要只显式检查 `geo_dis < success_dis`
+3. 论文里成功定义包含距离和视野条件；当前代码现在也默认要求“`geo_dis < success_dis` 且目标在前视角 semantic observation 中可见”才会 `stop`
 4. 论文正文提到 Habitat 和 Isaac Sim，当前仓库这条主链只实现了 Habitat/HM3D 分支
 
 ---
