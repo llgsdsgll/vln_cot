@@ -9,6 +9,7 @@ import ast
 import os
 
 from gpt import gpt4o_mini, gpt4o
+from path_utils import make_safe_task_dir_name
 
 
 def _strip_code_fence(text):
@@ -78,6 +79,15 @@ def _parse_task_output(task_text):
             pass
 
     raise ValueError(f"Failed to parse task output as dictionary: {task_text[:500]}")
+
+
+def _extract_action_argument(task_text, action_name):
+    prefix = f"{action_name}('"
+    suffix = "')"
+    if not task_text.startswith(prefix) or not task_text.endswith(suffix):
+        return None
+    return task_text[len(prefix):-len(suffix)]
+
 
 def sample_obj(scene_dic):
     for key, value in scene_dic.items():
@@ -249,9 +259,13 @@ def gen_task(args):
     print(task_dic)
     wrong = False
     objs = []
+    valid_objects = {obj for obj_list in input_scene.values() for obj in obj_list}
     for task in task_dic["Subtask list"]:
-        if "Move_to" in task:
-            obj_id = task[9:-2]
+        if task.startswith("Move_to"):
+            obj_id = _extract_action_argument(task, "Move_to")
+            if obj_id is None or "_" not in obj_id:
+                wrong = True
+                break
             obj = obj_id.split("_")
             ok = None
             for k in list(input_scene.keys()):
@@ -265,6 +279,14 @@ def gen_task(args):
             if obj[0] not in input_scene[ok]:
                 wrong = True
                 break
+        elif task.startswith("Stop_at"):
+            stop_obj = _extract_action_argument(task, "Stop_at")
+            if stop_obj is None or stop_obj not in valid_objects:
+                wrong = True
+                break
+        else:
+            wrong = True
+            break
     if "region" in task_dic['Task instruction'] or "Region" in task_dic['Task instruction']:
         wrong = True
     if wrong:
@@ -273,7 +295,7 @@ def gen_task(args):
     task_dic['Object'] = objs
     if task_dic['Task instruction'].endswith('.') or task_dic['Task instruction'].endswith('?'):
         task_dic['Task instruction'] = task_dic['Task instruction'][:- 1]
-    file = task_dic['Task instruction']
+    file = make_safe_task_dir_name(task_dic['Task instruction'])
     os.makedirs(args.task_path + str(length) + '/' + file, exist_ok=True)
     with open(args.task_path + str(length) + '/' + file + '/config.json', 'w') as json_file:
         json.dump(task_dic, json_file, indent=4)

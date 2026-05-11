@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument(
         "--allow-occluded-goal-fallback",
         action="store_true",
-        help="allow snapped object-center fallback when no visible viewpoint exists",
+        help="deprecated compatibility flag; ignored because strict visible-viewpoint mode now marks no-visible-viewpoint targets unreachable",
     )
     parser.add_argument(
         "--meters-per-pixel",
@@ -147,7 +147,7 @@ def build_sim_args(cli_args):
         success_dis=1.0,
         success_visible_pixels=max(1, int(cli_args.success_visible_pixels)),
         allow_stop_without_visibility=False,
-        allow_occluded_goal_fallback=cli_args.allow_occluded_goal_fallback,
+        allow_occluded_goal_fallback=False,
         success_view_radius_min=0.75,
         success_view_radius_max=2.5,
         success_view_radius_step=0.5,
@@ -368,13 +368,9 @@ def collect_trial_data(simulator, task_config, trajectory_meta, cli_args):
             strong_viewpoints = [
                 point for point in probe_points if int(point["pixel_count"]) >= required_pixels
             ]
-            relaxed_viewpoints = [point for point in probe_points if int(point["pixel_count"]) >= 1]
             displayed_viewpoints = strong_viewpoints
-            sampling_mode = "visible_viewpoint"
-            if not displayed_viewpoints and required_pixels > 1:
-                displayed_viewpoints = relaxed_viewpoints
-                if displayed_viewpoints:
-                    sampling_mode = "visible_viewpoint_relaxed"
+            relaxed_viewpoints = []
+            sampling_mode = "visible_viewpoint" if displayed_viewpoints else "no_visible_viewpoint"
 
             visible_viewpoints.extend(displayed_viewpoints)
             reachable_visible_viewpoints.extend(
@@ -543,7 +539,8 @@ def build_summary(task_config, trial_rows, cli_args, diagnostic_mode):
         "diagnostic_mode": diagnostic_mode,
         "sampling_params": {
             "success_visible_pixels": int(cli_args.success_visible_pixels),
-            "allow_occluded_goal_fallback": bool(cli_args.allow_occluded_goal_fallback),
+            "strict_visible_viewpoints": True,
+            "requested_allow_occluded_goal_fallback": bool(cli_args.allow_occluded_goal_fallback),
             "target_index": cli_args.target_index,
             "success_view_radius_min": 0.75,
             "success_view_radius_max": 2.5,

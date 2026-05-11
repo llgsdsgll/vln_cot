@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple, Union
 from habitat_sim.utils.common import quat_from_angle_axis
 from .visualization import display_env
 from .config import make_setting, make_cfg
+from path_utils import make_safe_task_dir_name
 
 
 class SceneSimulator:
@@ -20,9 +21,10 @@ class SceneSimulator:
         self.target = config['Object']          # target object
         self.region = config['Region']          # region of target object
         self.ins = config['Task instruction']   # task instruction
+        self.dir_name = make_safe_task_dir_name(self.ins)
         # self.task = config['Subtask list']      # subtask list
 
-        self.save_path = args.task_path + str(len(self.target)) + '/' + self.ins
+        self.save_path = args.task_path + str(len(self.target)) + '/' + self.dir_name
         self.target_candidate_cache = {}
         self.target_viewpoint_cache = {}
 
@@ -400,15 +402,6 @@ class SceneSimulator:
             target_index,
             min_pixels=required_pixels,
         )
-        goal_type = "visible_viewpoint"
-        if not visible_viewpoints and required_pixels > 1:
-            relaxed_viewpoints = self.get_visible_viewpoints(
-                target_index,
-                min_pixels=1,
-            )
-            if relaxed_viewpoints:
-                visible_viewpoints = relaxed_viewpoints
-                goal_type = "visible_viewpoint_relaxed"
         if visible_viewpoints:
             agent_state = self.agent.get_state()
             position_a = agent_state.position
@@ -435,50 +428,20 @@ class SceneSimulator:
                         "object_id": best_viewpoint.get("object_id"),
                         "goal_yaw": best_viewpoint.get("yaw"),
                         "goal_pixel_count": best_viewpoint.get("pixel_count"),
-                        "goal_type": goal_type,
+                        "goal_type": "visible_viewpoint",
                     },
                 )
 
         candidates = self.get_target_candidates(target_index)
-        if not candidates:
-            return math.inf, None, None
-
-        if not getattr(self.args, "allow_occluded_goal_fallback", False):
-            return (
-                math.inf,
-                None,
-                {
-                    "goal_type": "no_visible_viewpoint",
-                    "candidate_count": len(candidates),
-                    "object_ids": [candidate.get("object_id") for candidate in candidates],
-                },
-            )
-
-        agent_state = self.agent.get_state()
-        position_a = agent_state.position
-        geo_dis = math.inf
-        best_snap_coord = None
-        best_candidate = None
-
-        for candidate in candidates:
-            snap_coord = self.pathfinder.snap_point(candidate["center"])
-            if not self._is_valid_nav_point(snap_coord):
-                continue
-            snap_coord = np.array(snap_coord, dtype=np.float32)
-
-            path = habitat_sim.nav.ShortestPath()
-            path.requested_end = snap_coord
-            path.requested_start = np.array(position_a, dtype=np.float32)
-
-            if not self.pathfinder.find_path(path):
-                continue
-            if path.geodesic_distance < geo_dis:
-                geo_dis = path.geodesic_distance
-                best_snap_coord = snap_coord
-                best_candidate = dict(candidate)
-                best_candidate["goal_type"] = "object_center_snap"
-
-        return geo_dis, best_snap_coord, best_candidate
+        return (
+            math.inf,
+            None,
+            {
+                "goal_type": "no_visible_viewpoint",
+                "candidate_count": len(candidates),
+                "object_ids": [candidate.get("object_id") for candidate in candidates],
+            },
+        )
 
     def get_target_visibility(self, target_index, min_pixels=25):
         required_pixels = max(1, int(min_pixels))

@@ -1,10 +1,10 @@
 {
     "time cost": [
-        0.22207676109514737
+        0.2107799146082494
     ],
     "fail tasks": [],
-    "mean task step": 76.0,
-    "mean nav step": 38.0,
+    "mean task step": 77.0,
+    "mean nav step": 25.666666666666668,
     "mean task SR": 1.0,
     "mean nav SR": 1.0
 }

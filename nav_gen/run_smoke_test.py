@@ -5,6 +5,7 @@ import json
 import os
 import time
 import traceback
+import glob
 from types import SimpleNamespace
 
 from dataset_gen import eval_for_one_task
@@ -103,8 +104,23 @@ def run_smoke(output_root, target_successes, max_attempts, max_step, scene_id):
 
         task = normalize_task_config(raw_task)
         task_len = len(task["Object"])
-        task_dir = os.path.join(args.task_path, str(task_len), task["Task instruction"])
-        config_path = os.path.join(task_dir, "config.json")
+        config_path = None
+        for candidate in sorted(
+            glob.glob(os.path.join(args.task_path, str(task_len), "*", "config.json"))
+        ):
+            try:
+                with open(candidate, "r", encoding="utf-8") as handle:
+                    candidate_config = json.load(handle)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if candidate_config.get("Task instruction") == task["Task instruction"]:
+                config_path = candidate
+                break
+        if config_path is None:
+            config_path = os.path.join(
+                args.task_path, str(task_len), task["Task instruction"], "config.json"
+            )
+        task_dir = os.path.dirname(config_path)
 
         time_start = time.time()
         try:

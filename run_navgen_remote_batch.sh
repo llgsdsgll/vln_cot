@@ -10,6 +10,7 @@ Usage:
 
 Wrapper options:
   --run-name NAME              Override the batch run name.
+                               Default: navgen_batch_YYYYMMDD_HHMMSS
   --local-root DIR             Local parent directory for temporary outputs.
   --remote-user USER           Remote SSH user. Default: root
   --remote-host HOST           Remote SSH host. Default: 139.196.171.150
@@ -25,7 +26,8 @@ Wrapper options:
                                Default: cuda:<sim-gpu-device>
   --export-videos              After each successful NavGen item, export
                                trajectory RGB videos from every
-                               */success/trial_1/task.json found in it.
+                               */success/trial_1/task.json and every
+                               generated step_task/*.json found in it.
   --video-subdir DIRNAME       Per-item local video output subdir.
                                Default: videos_action1fps_boxes
   --video-fps N                Exported video fps. Default: 1
@@ -60,9 +62,13 @@ Wrapper behavior:
   NavGen tasks. This wrapper runs `python main.py --loop 1` repeatedly until
   that many successful tasks are produced, or until --max-attempts is reached.
 
+Output layout:
+  <run-dir>/success/item_xxxx/{task,step_task,logs,<video-subdir>,<viz-subdir>}
+  <run-dir>/failure/item_xxxx/{task,step_task,logs,<video-subdir>,<viz-subdir>}
+
 Example:
   ./run_navgen_remote_batch.sh \
-    --run-name batch_20260427 \
+    --run-name navgen_batch_20260509_143000 \
     --export-videos \
     --loop 100 \
     --max-attempts 1000 \
@@ -71,6 +77,7 @@ EOF
 }
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUN_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 CONDA_EXE="${CONDA_EXE:-/home/gs/anaconda3/bin/conda}"
 CONDA_ENV="${CONDA_ENV:-lhvln-cu128}"
 REMOTE_USER="${REMOTE_USER:-root}"
@@ -81,7 +88,9 @@ SIM_GPU_DEVICE="${NAVGEN_SIM_GPU_DEVICE:-0}"
 RAM_DEVICE="${NAVGEN_RAM_DEVICE:-cuda:${SIM_GPU_DEVICE}}"
 LOCAL_ROOT_DEFAULT="$PROJECT_ROOT/nav_gen/remote_batches"
 LOCAL_ROOT="${LOCAL_ROOT:-$LOCAL_ROOT_DEFAULT}"
-RUN_NAME_DEFAULT="navgen_batch_$(date +%Y%m%d_%H%M%S)"
+RUN_NAME_DEFAULT="navgen_batch_${RUN_TIMESTAMP}"
+SUCCESS_BUCKET_NAME="success"
+FAILURE_BUCKET_NAME="failure"
 RUN_NAME=""
 KEEP_LOCAL_ITEM=0
 CLEANUP_LOCAL=0
@@ -365,18 +374,22 @@ fi
 
 mkdir -p "$LOCAL_ROOT"
 LOCAL_RUN_DIR="$LOCAL_ROOT/$RUN_NAME"
-LOCAL_LOG_DIR="$LOCAL_RUN_DIR/logs"
+LOCAL_RUNNING_DIR="$LOCAL_RUN_DIR/_running"
 SUMMARY_FILE="$LOCAL_RUN_DIR/batch_summary.tsv"
 
 REMOTE_SPEC="${REMOTE_USER}@${REMOTE_HOST}"
 REMOTE_RUN_DIR="${REMOTE_BASE_DIR%/}/${RUN_NAME}"
 
-mkdir -p "$LOCAL_RUN_DIR" "$LOCAL_LOG_DIR"
+mkdir -p \
+  "$LOCAL_RUN_DIR" \
+  "$LOCAL_RUNNING_DIR" \
+  "$LOCAL_RUN_DIR/$SUCCESS_BUCKET_NAME" \
+  "$LOCAL_RUN_DIR/$FAILURE_BUCKET_NAME"
 printf "item_id\tstatus\tsuccess_progress\tstep_task_json_count\tvideo_count\tvideo_status\tlocal_item_dir\tremote_run_dir\n" > "$SUMMARY_FILE"
 
 ensure_remote_layout() {
   ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
-    "mkdir -p '$REMOTE_RUN_DIR/task' '$REMOTE_RUN_DIR/step_task' '$REMOTE_RUN_DIR/logs' '$REMOTE_RUN_DIR/videos'"
+    "mkdir -p '$REMOTE_RUN_DIR/$SUCCESS_BUCKET_NAME' '$REMOTE_RUN_DIR/$FAILURE_BUCKET_NAME'"
 }
 
 detect_sync_mode() {
@@ -463,40 +476,33 @@ append_summary() {
     "${REMOTE_SPEC}:${REMOTE_RUN_DIR}" >> "$SUMMARY_FILE"
 }
 
+finalize_item_dir() {
+  local item_id="$1"
+  local item_dir="$2"
+  local item_bucket="$3"
+  local final_item_dir="$LOCAL_RUN_DIR/$item_bucket/$item_id"
+
+  if [[ -e "$final_item_dir" ]]; then
+    echo "[ERROR] Final item directory already exists: $final_item_dir" >&2
+    exit 1
+  fi
+
+  mv "$item_dir" "$final_item_dir"
+  printf "%s\n" "$final_item_dir"
+}
+
 sync_item() {
   local item_id="$1"
   local item_dir="$2"
-  local item_task_dir="$item_dir/task"
-  local item_step_task_dir="$item_dir/step_task"
-  local item_log_dir="$item_dir/logs"
-  local item_video_dir="$item_dir/$VIDEO_SUBDIR"
+  local item_bucket="$3"
+  local remote_item_dir="${REMOTE_RUN_DIR}/${item_bucket}/${item_id}"
 
-  echo "[INFO] Syncing ${item_id} to ${REMOTE_SPEC}:${REMOTE_RUN_DIR}/"
+  echo "[INFO] Syncing ${item_id} (${item_bucket}) to ${REMOTE_SPEC}:${remote_item_dir}"
 
   ensure_remote_layout
-
-  if [[ -d "$item_task_dir" ]] && [[ -n "$(find "$item_task_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    sync_dir_contents "$item_task_dir" "${REMOTE_RUN_DIR}/task"
-  fi
-
-  if [[ -d "$item_step_task_dir" ]] && [[ -n "$(find "$item_step_task_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    sync_dir_contents "$item_step_task_dir" "${REMOTE_RUN_DIR}/step_task"
-  fi
-
-  if [[ -d "$item_log_dir" ]] && [[ -n "$(find "$item_log_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$REMOTE_RUN_DIR/logs/$item_id'"
-    sync_dir_contents "$item_log_dir" "${REMOTE_RUN_DIR}/logs/${item_id}"
-  fi
-
-  if [[ -d "$item_video_dir" ]] && [[ -n "$(find "$item_video_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$REMOTE_RUN_DIR/videos/$item_id/$VIDEO_SUBDIR'"
-    sync_dir_contents "$item_video_dir" "${REMOTE_RUN_DIR}/videos/${item_id}/${VIDEO_SUBDIR}"
-  fi
-
-  local item_viz_dir="$item_dir/$VIZ_SUBDIR"
-  if [[ -d "$item_viz_dir" ]] && [[ -n "$(find "$item_viz_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$REMOTE_RUN_DIR/viz/$item_id/$VIZ_SUBDIR'"
-    sync_dir_contents "$item_viz_dir" "${REMOTE_RUN_DIR}/viz/${item_id}/${VIZ_SUBDIR}"
+  if [[ -d "$item_dir" ]] && [[ -n "$(find "$item_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$remote_item_dir'"
+    sync_dir_contents "$item_dir" "$remote_item_dir"
   fi
 
   sync_summary
@@ -542,9 +548,13 @@ export_item_videos() {
   local item_id="$1"
   local item_dir="$2"
   local item_task_dir="$item_dir/task"
+  local item_step_task_dir="$item_dir/step_task"
   local item_video_dir="$item_dir/$VIDEO_SUBDIR"
   local item_video_log="$item_dir/logs/video_export.log"
   local found_task_jsons=0
+  local exported_task_videos=0
+  local found_step_task_jsons=0
+  local exported_step_task_videos=0
   local exported_videos=0
 
   LAST_VIDEO_EXPORT_COUNT=0
@@ -596,24 +606,75 @@ export_item_videos() {
     set -e
 
     if [[ "$export_status" -ne 0 ]]; then
+      exported_videos=$exported_task_videos
       LAST_VIDEO_EXPORT_COUNT="$exported_videos"
-      LAST_VIDEO_EXPORT_STATUS="export_failed:${export_status}"
+      LAST_VIDEO_EXPORT_STATUS="task_export_failed:${export_status}"
       echo "[ERROR] Video export failed for ${rel_task_json}; exit=${export_status}" | tee -a "$item_video_log" >&2
       return 1
     fi
 
-    exported_videos=$((exported_videos + 1))
+    exported_task_videos=$((exported_task_videos + 1))
   done < <(find "$item_task_dir" -path '*/success/trial_1/task.json' -print0 2>/dev/null)
 
+  while IFS= read -r -d '' step_task_json; do
+    found_step_task_jsons=$((found_step_task_jsons + 1))
+    local rel_step_task_json="${step_task_json#$item_step_task_dir/}"
+    local step_task_stem="${rel_step_task_json%.json}"
+    local output_video="$item_video_dir/step_task/$step_task_stem.mp4"
+
+    mkdir -p "$(dirname "$output_video")"
+    echo "[INFO] Exporting step-task video for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
+
+    local step_export_cmd=(
+      "$CONDA_EXE" run -n "$CONDA_ENV" env
+      NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
+      python export_trajectory_rgb_video.py
+      --task_json "$step_task_json"
+      --output_video "$output_video"
+      --fps "$VIDEO_FPS"
+      --width "$VIDEO_WIDTH"
+      --height "$VIDEO_HEIGHT"
+      --sensor_height "$RENDER_SENSOR_HEIGHT"
+      --hfov "$VIDEO_HFOV"
+      --sim_gpu_device "$SIM_GPU_DEVICE"
+      --frame_mode "$VIDEO_FRAME_MODE"
+      --output_codec "$VIDEO_CODEC"
+    )
+
+    if [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
+      step_export_cmd+=(--annotate)
+    fi
+
+    if [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
+      step_export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
+    fi
+
+    set +e
+    "${step_export_cmd[@]}" 2>&1 | tee -a "$item_video_log"
+    local step_export_status=${PIPESTATUS[0]}
+    set -e
+
+    if [[ "$step_export_status" -ne 0 ]]; then
+      exported_videos=$((exported_task_videos + exported_step_task_videos))
+      LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+      LAST_VIDEO_EXPORT_STATUS="step_task_export_failed:${step_export_status}"
+      echo "[ERROR] Step-task video export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+      return 1
+    fi
+
+    exported_step_task_videos=$((exported_step_task_videos + 1))
+  done < <(find "$item_step_task_dir" -type f -name '*.json' -print0 2>/dev/null)
+
+  exported_videos=$((exported_task_videos + exported_step_task_videos))
   LAST_VIDEO_EXPORT_COUNT="$exported_videos"
 
-  if [[ "$found_task_jsons" -eq 0 ]]; then
-    LAST_VIDEO_EXPORT_STATUS="no_success_trial_task_json"
-    echo "[WARN] No success/trial_1/task.json found for ${item_id}; skipping video export." | tee -a "$item_video_log" >&2
+  if [[ "$found_task_jsons" -eq 0 ]] && [[ "$found_step_task_jsons" -eq 0 ]]; then
+    LAST_VIDEO_EXPORT_STATUS="no_task_or_step_task_json"
+    echo "[WARN] No success/trial_1/task.json or step_task json found for ${item_id}; skipping video export." | tee -a "$item_video_log" >&2
     return 1
   fi
 
-  LAST_VIDEO_EXPORT_STATUS="ok:${exported_videos}"
+  LAST_VIDEO_EXPORT_STATUS="ok:task=${exported_task_videos},step=${exported_step_task_videos},total=${exported_videos}"
   return 0
 }
 
@@ -735,7 +796,7 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
   fi
 
   item_id="$(printf 'item_%04d' "$attempt_count")"
-  item_dir="$LOCAL_RUN_DIR/$item_id"
+  item_dir="$LOCAL_RUNNING_DIR/$item_id"
   item_task_dir="$item_dir/task"
   item_step_task_dir="$item_dir/step_task"
   item_log_dir="$item_dir/logs"
@@ -766,10 +827,12 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
   step_task_json_count="$(count_step_task_jsons "$item_step_task_dir")"
   item_success=0
   item_summary_status=""
+  item_bucket="$FAILURE_BUCKET_NAME"
   video_count=0
   video_status="disabled"
 
   if [[ "$item_status" -eq 0 ]] && item_has_success_output "$item_dir"; then
+    item_bucket="$SUCCESS_BUCKET_NAME"
     if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
       if export_item_videos "$item_id" "$item_dir"; then
         video_count="$LAST_VIDEO_EXPORT_COUNT"
@@ -801,19 +864,23 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
 
   export_item_viz "$item_id" "$item_dir"
 
+  final_item_dir="$(finalize_item_dir "$item_id" "$item_dir" "$item_bucket")"
+
   if [[ "$item_success" -eq 1 ]]; then
     echo "[INFO] ${item_id} produced a successful task (${success_count}/${LOOP_COUNT}); step-task jsons: ${step_task_json_count}; videos: ${video_count}"
   else
     echo "[WARN] ${item_id} did not produce a successful task; status=${item_summary_status}, step-task jsons=${step_task_json_count}, video_status=${video_status}" >&2
   fi
 
-  append_summary "$item_id" "$item_summary_status" "${success_count}/${LOOP_COUNT}" "$step_task_json_count" "$video_count" "$video_status" "$item_dir"
-  sync_item "$item_id" "$item_dir"
+  append_summary "$item_id" "$item_summary_status" "${success_count}/${LOOP_COUNT}" "$step_task_json_count" "$video_count" "$video_status" "$final_item_dir"
+  sync_item "$item_id" "$final_item_dir" "$item_bucket"
 
-  cleanup_local_item "$item_dir"
+  cleanup_local_item "$final_item_dir"
+  rmdir "$LOCAL_RUNNING_DIR" 2>/dev/null || true
 done
 
 if [[ "$success_count" -lt "$LOOP_COUNT" ]]; then
+  rmdir "$LOCAL_RUNNING_DIR" 2>/dev/null || true
   echo "[ERROR] Only ${success_count}/${LOOP_COUNT} successful tasks were produced." >&2
   if [[ "$MAX_ATTEMPTS" -gt 0 ]]; then
     echo "[ERROR] Reached the maximum attempt limit: ${MAX_ATTEMPTS}" >&2
@@ -821,9 +888,13 @@ if [[ "$success_count" -lt "$LOOP_COUNT" ]]; then
   exit 1
 fi
 
+rmdir "$LOCAL_RUNNING_DIR" 2>/dev/null || true
+
 if [[ "$CLEANUP_LOCAL" -eq 1 ]]; then
-  find "$LOCAL_RUN_DIR" -mindepth 1 -maxdepth 1 -type d -name 'item_*' -exec rm -rf {} +
-  rmdir "$LOCAL_LOG_DIR" 2>/dev/null || true
+  find "$LOCAL_RUN_DIR/$SUCCESS_BUCKET_NAME" -mindepth 1 -maxdepth 1 -type d -name 'item_*' -exec rm -rf {} +
+  find "$LOCAL_RUN_DIR/$FAILURE_BUCKET_NAME" -mindepth 1 -maxdepth 1 -type d -name 'item_*' -exec rm -rf {} +
+  rmdir "$LOCAL_RUN_DIR/$SUCCESS_BUCKET_NAME" 2>/dev/null || true
+  rmdir "$LOCAL_RUN_DIR/$FAILURE_BUCKET_NAME" 2>/dev/null || true
   if [[ "$KEEP_LOCAL_ITEM" -eq 0 ]]; then
     rm -f "$SUMMARY_FILE"
     rmdir "$LOCAL_RUN_DIR" 2>/dev/null || true

@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument(
         "--allow_occluded_goal_fallback",
         action="store_true",
-        help="allow snapped object-center fallback when no visible viewpoint is found",
+        help="deprecated compatibility flag; ignored because strict visible-viewpoint mode now marks no-visible-viewpoint targets unreachable",
     )
     parser.add_argument(
         "--inspect_only",
@@ -139,7 +139,7 @@ def main():
     args.success_dis = cli_args.success_dis
     args.success_visible_pixels = cli_args.success_visible_pixels
     args.allow_stop_without_visibility = cli_args.allow_stop_without_visibility
-    args.allow_occluded_goal_fallback = cli_args.allow_occluded_goal_fallback
+    args.allow_occluded_goal_fallback = False
 
     task_dir = config_path.parent
     print(f"config_path={config_path}", flush=True)
@@ -154,7 +154,8 @@ def main():
                 "success_dis": args.success_dis,
                 "success_visible_pixels": args.success_visible_pixels,
                 "allow_stop_without_visibility": args.allow_stop_without_visibility,
-                "allow_occluded_goal_fallback": args.allow_occluded_goal_fallback,
+                "requested_allow_occluded_goal_fallback": cli_args.allow_occluded_goal_fallback,
+                "strict_visible_viewpoints": True,
             },
             ensure_ascii=False,
         ),

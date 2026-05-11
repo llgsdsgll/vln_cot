@@ -41,7 +41,7 @@ def read_args():
     parser.add_argument('--success_dis', type=float, default=1, help="distance to be considered as success")
     parser.add_argument('--success_visible_pixels', type=int, default=25, help="minimum front semantic pixels required before a target can be treated as visible for success")
     parser.add_argument('--allow_stop_without_visibility', action='store_true', help="fall back to the old distance-only success rule")
-    parser.add_argument('--allow_occluded_goal_fallback', action='store_true', help="fall back to snapped object-center goals when no visible target viewpoint can be found")
+    parser.add_argument('--allow_occluded_goal_fallback', action='store_true', help="deprecated compatibility flag; strict visible-viewpoint mode now marks no-visible-viewpoint targets unreachable")
     parser.add_argument('--success_view_radius_min', type=float, default=0.75, help="minimum radius when sampling visible target viewpoints")
     parser.add_argument('--success_view_radius_max', type=float, default=2.5, help="maximum radius when sampling visible target viewpoints")
     parser.add_argument('--success_view_radius_step', type=float, default=0.5, help="radius step when sampling visible target viewpoints")

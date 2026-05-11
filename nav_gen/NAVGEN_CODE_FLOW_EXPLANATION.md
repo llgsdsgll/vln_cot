@@ -1,6 +1,6 @@
 # NavGen 代码流程说明
 
-更新时间：2026-04-23
+更新时间：2026-05-07
 
 本文档按 `nav_gen` 的实际执行顺序来讲解代码，而不是按文件列表逐个介绍。
 如果你想回答“从运行 `python main.py` 开始，NavGen 到底做了什么”，这份文档就是为这个问题写的。
@@ -8,7 +8,7 @@
 说明：
 
 - 这里讲的是 `nav_gen` 主流水线。
-- 文档最后会补充本轮新增的辅助脚本，例如 smoke run、split GPU 入口、视频导出脚本，但它们不是论文 NavGen 的主生成链。
+- 文档最后会补充本轮新增的辅助脚本，例如 smoke run、单任务重跑、目标视点可视化、视频导出脚本，但它们不是论文 NavGen 的主生成链。
 
 ## 1. 先看目录里哪些东西在主流程中会被用到
 
@@ -116,8 +116,17 @@ python main.py
 - `scene`
 - `scene_dataset`
 - `sim_gpu_device`
+- `render_sensor_height`
 - `max_step`
 - `success_dis`
+- `success_visible_pixels`
+- `allow_stop_without_visibility`
+- `allow_occluded_goal_fallback`
+  - 兼容保留参数；当前严格模式下即使传入也不会再回退到物体中心 goal
+- `success_view_radius_min`
+- `success_view_radius_max`
+- `success_view_radius_step`
+- `success_view_angle_step`
 
 #### D. split / RAM 相关
 
@@ -208,6 +217,15 @@ Region x: room_name -> [obj1, obj2, obj3, ...]
 - `prompt/<robot>.txt`
 - `prompt/system.txt`
 
+当前这套 prompt 规则的核心已经不是 `Grab` / `Release` 了，而是要求模型用：
+
+- `Move_to('object_region_id')`
+- `Stop_at('object')`
+
+来组织任务。
+
+也就是说，当前长任务更像“去某个环境物体附近并停下”的序列，而不是“抓取-搬运-释放”的操作序列。
+
 然后拼出最终 prompt，交给：
 
 ```python
@@ -221,7 +239,15 @@ gpt4o_mini(args, args.prompt_path + "system.txt", prompt)
 
 ### 4.5 LLM 输出什么格式
 
-LLM 需要输出一个 JSON，里面至少包含：
+代码期望 LLM 输出一个字典结构，优先按 JSON 解析；如果模型返回了：
+
+- Markdown code fence
+- 单独的 `json` / `python` 语言提示
+- Python 字典字面量
+
+当前 `task_gen.py` 里的 `_parse_task_output()` 也会先做清洗再解析。
+
+最终这个结构里至少要包含：
 
 - `Task instruction`
 - `Subtask list`
@@ -240,7 +266,10 @@ LLM 需要输出一个 JSON，里面至少包含：
 
 2. 检查对象是否真的在对应 region 中
 
-3. 检查 `Task instruction` 中是否直接出现 `region` / `Region`
+3. 检查所有 `Stop_at('obj')`
+   - 目标 object 是否真的出现在当前 `input_scene` 中
+
+4. 检查 `Task instruction` 中是否直接出现 `region` / `Region`
    - 如果出现则判错
 
 如果不合法：
@@ -338,6 +367,7 @@ args.task_path + str(len(self.target)) + '/' + self.ins
 
 3. 调用 `make_setting()` 和 `make_cfg()`
    - 生成 Habitat-Sim 的配置
+   - 这里还会把前视 semantic sensor、高度、FOV、GPU device 等参数一起写进 simulator config
 
 4. 初始化 Habitat-Sim
 
@@ -352,8 +382,13 @@ args.task_path + str(len(self.target)) + '/' + self.ins
 8. 初始化 `GreedyGeodesicFollower`
    - 之后每一步动作都由它给出
 
-9. 先做一次 `sim.step("move_forward")`
+9. 初始化两个缓存
+   - `target_candidate_cache`
+   - `target_viewpoint_cache`
+
+10. 先做一次 `sim.step("move_forward")`
    - 用于初始化观测
+   - 这一步也会让 agent 从采样起点向前执行一次基础动作
 
 ### 6.2 `SceneSimulator` 提供了哪些关键方法
 
@@ -361,12 +396,20 @@ args.task_path + str(len(self.target)) + '/' + self.ins
 
 - `actor(action, step, success)`
   - 真正执行动作，并保存当前观察图像
-- `get_coord(obj_target)`
-  - 在当前 region 中找到目标物体中心坐标
-- `geodesic_distance(position_b_list)`
-  - 计算 agent 到多个候选目标点的 geodesic distance
+- `get_target_candidates(target_index)`
+  - 在目标 region 内枚举同类物体实例，收集 `center`、`semantic_id`、`object_id`
+- `get_visible_viewpoints(target_index, min_pixels)`
+  - 围绕候选物体采样可导航视点，并筛掉 semantic pixel 不足的视点
+- `get_goal_info(target_index)`
+  - 选择当前真正要导航的 goal：优先选“可见目标视点”，必要时再决定是否回退到物体中心 snap 点
+- `get_target_visibility(target_index, min_pixels)`
+  - 检查当前 front semantic sensor 里目标实例到底有没有真正出现
 - `get_info(success)`
   - 返回当前子目标、位置、yaw、geodesic distance
+- `get_goal_pose_alignment_action(goal_center, goal_yaw)`
+  - 已经靠近目标但还没满足可见性时，优先做朝向对齐
+- `get_visibility_search_action(goal_center)`
+  - 朝向对齐还不够时，做近距离局部搜索
 - `get_next_action(goal_pos)`
   - 调用 `GreedyGeodesicFollower` 给出下一步动作
 - `return_state()`
@@ -402,11 +445,13 @@ for step in range(args.max_step):
 每一步会依次做：
 
 1. 根据当前 `success` 确定当前子目标
-2. 调用 `get_coord(obj_target)` 找目标候选坐标
-3. 对候选坐标做 `snap_point`
-4. 计算到目标的 geodesic distance
-5. 调用 `return_state()` 记录当前状态
-6. 把当前状态写入：
+2. 调用 `get_goal_info(success)` 选择当前要追踪的导航目标
+   - 先在目标物体周围采样“能看见目标”的候选视点
+   - 对每个候选视点计算 geodesic distance
+   - 选 geodesic distance 最短的那个视点作为当前 goal
+   - 如果完全找不到满足 `success_visible_pixels` 阈值的可见视点，则直接判 unreachable
+3. 调用 `return_state()` 记录当前状态
+4. 把当前状态写入：
 
 ```text
 config['trial']['trial_i']['pos'/'yaw'/'action']
@@ -423,6 +468,17 @@ and target_is_visible_in_front_view
 
 其中 `target_is_visible_in_front_view` 是通过前视角 semantic sensor 判断的，
 默认要求目标实例在前视角里至少有 `25` 个 semantic pixel。
+
+需要注意一点：
+
+- 这里的 `geo_dis` 默认是“到选中的可见目标视点”的 geodesic distance
+- 不是简单地到物体几何中心的距离
+
+如果命令行打开：
+
+- `--allow_stop_without_visibility`
+
+则会退回旧逻辑，只要距离满足就允许 stop success。
 
 只有这两个条件都满足，当前子目标才会被判成功。
 
@@ -445,10 +501,16 @@ and target_is_visible_in_front_view
 2. 如果已经进入 `success_dis` 范围，但前视角里还看不到目标：
 
 ```python
+action = task_sim.get_goal_pose_alignment_action(goal_center, goal_yaw)
+```
+
+如果朝向已经基本对齐，但还是没看见目标，才会退到：
+
+```python
 action = task_sim.get_visibility_search_action(goal_center)
 ```
 
-也就是先做一个近距离局部搜索，让机器人转向或再向前挪一步，直到目标真正进入 front view。
+也就是说，当前实现不是“距离够了就盲目 stop”，而是会在目标附近继续做局部朝向调整 / 搜索，直到目标真正进入 front view，或者命中旧逻辑回退开关。
 
 3. 否则调用：
 
@@ -721,6 +783,11 @@ gpt4o_mini(args, args.prompt_path + "gen_task.txt", json.dumps(tags))
 step_task/<Task instruction>.json
 ```
 
+补充两个当前实现里的细节：
+
+- 如果 `Task instruction` 太长，文件名会被截断到前 `100` 个字符
+- 如果 instruction 末尾是空格，保存前会先去掉末尾空格
+
 这份 JSON 可以理解为：
 
 - 从长任务中切出来的局部训练样本
@@ -789,12 +856,22 @@ scene/*.txt + region CSV + prompt/*
 
 适合在长任务轨迹已经准备好的情况下，单独重跑切分阶段。
 
-### `run_navgen_split_gpu.sh`
+### `rerun_single_task.py`
 
 用途：
 
-- 专门在 `lhvln-cu128` 环境中运行 split 阶段
-- 统一注入 GPU 环境变量
+- 对已有 `task.json` / 单条任务配置做单任务重跑
+- 方便复现某个失败 case，或者验证某个成功轨迹在新参数下会不会行为变化
+
+### `visualize_goal_viewpoints_topdown.py`
+
+用途：
+
+- 把某个目标物体周围采样到的“可见目标视点”画到 top-down map 上
+- 专门用来调试：
+  - `success_visible_pixels`
+  - `success_view_radius_*`
+  - `render_sensor_height`
 
 ### `export_trajectory_rgb_video.py`
 
@@ -810,6 +887,11 @@ scene/*.txt + region CSV + prompt/*
 
 这个脚本是本轮为了“人工核对 NavGen 输出是否合理”新增的可视化工具，不属于论文 NavGen 原始四步流水线。
 
+说明：
+
+- 旧文档里提到过 `run_navgen_split_gpu.sh`
+- 但当前 `nav_gen/` 目录里已经没有这个脚本了，所以这里按现有代码改成了 `rerun_single_task.py` 和 `visualize_goal_viewpoints_topdown.py`
+
 ## 15. 如果你继续读代码，建议按这个顺序
 
 如果你现在要继续往下读源码，我建议顺序是：
@@ -823,6 +905,8 @@ scene/*.txt + region CSV + prompt/*
 7. `nav_gen/habitat_base/visualization.py`
 8. `nav_gen/split_task.py`
 9. `nav_gen/run_smoke_test.py`
-10. `nav_gen/export_trajectory_rgb_video.py`
+10. `nav_gen/rerun_single_task.py`
+11. `nav_gen/visualize_goal_viewpoints_topdown.py`
+12. `nav_gen/export_trajectory_rgb_video.py`
 
 这样读下来，逻辑上最顺。

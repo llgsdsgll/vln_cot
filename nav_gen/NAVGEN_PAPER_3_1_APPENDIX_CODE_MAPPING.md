@@ -177,14 +177,14 @@ task = gpt4o_mini(args, args.prompt_path + "system.txt", prompt)
 
 ```python
 {
-  "Task instruction": "Please head to the kitchen and pick up the box. Bring it over to the couch in the living room and set it down. After that, go back to the kitchen and pick up the dish",
+  "Task instruction": "Please head to the kitchen and stop at the box. Then go to the couch in the living room and stop there. After that, go back to the kitchen and stop at the dish",
   "Subtask list": [
     "Move_to('box_11')",
-    "Grab('box')",
+    "Stop_at('box')",
     "Move_to('couch_12')",
-    "Release('box')",
+    "Stop_at('couch')",
     "Move_to('dish_11')",
-    "Grab('dish')"
+    "Stop_at('dish')"
   ]
 }
 ```

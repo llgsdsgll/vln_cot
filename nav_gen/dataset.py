@@ -4,6 +4,7 @@ import os
 import json
 import habitat_sim
 import numpy as np
+from path_utils import make_safe_task_dir_name
 
 
 class TaskDataset(Dataset):
@@ -76,7 +77,10 @@ def count_gt_length(args, sim):
     data_path = args.task_path
 
     length = len(sim.target)
-    task_path = data_path + str(length) + '/' + sim.ins + '/success/trial_1/task.json'
+    safe_task_dir = make_safe_task_dir_name(sim.ins)
+    task_path = data_path + str(length) + '/' + safe_task_dir + '/success/trial_1/task.json'
+    if not os.path.exists(task_path):
+        task_path = data_path + str(length) + '/' + sim.ins + '/success/trial_1/task.json'
 
     with open(task_path) as f:
       task_config = json.load(f)
