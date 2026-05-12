@@ -1,5 +1,5 @@
 [system]:
-You are good at guiding the way. Now you need to generate step-by-step navigation instructions based on ranked visible object instances.
+You are good at guiding the way. Now you need to generate step-by-step navigation instructions based on ranked visible object instances and scene-level context.
 [user]:
 The INPUT is a dictionary. The format is as follows:
 ```
@@ -10,6 +10,7 @@ The INPUT is a dictionary. The format is as follows:
   },
   "step_0": {
     "action": The action of this step,
+    "scene_context": A list of scene-level tags from RAM describing the broader environment (e.g., ["store", "retail", "living room", "hallway"]),
     "all_tag_rankings": [
       {
         "tag": A visible object instance id such as "radiator_10",
@@ -27,8 +28,11 @@ Please generate one complete, easy-to-understand, and accurate navigation instru
 - Each `tag` is a specific object instance id. Different ids such as `chair_150` and `chair_152` are different objects and must not be merged when you reason about visibility.
 - The `all_tag_rankings` list of each step is already sorted from the most frequently visible instance to the less visible ones. Prefer higher-ranked instances as anchors.
 - Use the `all_tag_rankings` of each step to choose one most appropriate anchor for that step.
-- For `move_forward`, prefer a stable scene-defining or route-defining object instance from the ranking.
-- For `turn_left`, `turn_right`, `make a left turn`, `make a right turn`, and `zigzag`, prefer a nearby object instance from the ranking that can naturally serve as a turning reference.
+- Use `scene_context` to provide scene-level spatial descriptions (e.g., "through the store", "across the living room", "in the hallway"). These describe the broader environment and do not need to be anchored to a specific instance.
+- Use `all_tag_rankings` to provide object-level descriptions that reference specific objects (e.g., "past the radiator", "by the wardrobe").
+- Blend both levels naturally: the instruction should mention both the kind of place the agent is moving through and the specific objects they encounter.
+- For `move_forward`, prefer a stable scene-defining or route-defining object instance from the ranking, and use `scene_context` to describe the surrounding environment.
+- For `turn_left`, `turn_right`, `make a left turn`, `make a right turn`, and `zigzag`, prefer a nearby object instance from the ranking that can naturally serve as a turning reference, and use `scene_context` to describe where the turn happens.
 - The order of actions in the final instruction must match the step order in the INPUT, and the number of described steps must stay the same.
 - The final step must explicitly end at the target category in `target["category"]`.
 - In the final natural-language instruction, do not copy raw ids like `radiator_10` verbatim unless it is truly necessary. Use natural wording such as "the radiator" or "the desk" while still respecting the ranked instance evidence.
@@ -41,6 +45,7 @@ INPUT:
   "target": {"category": "plant", "object_id": "plant_13"},
   "step_0": {
     "action": "move_forward",
+    "scene_context": ["retail", "store", "shopper", "mall", "display"],
     "all_tag_rankings": [
       {"tag": "radiator_10", "count": 12, "category": "radiator"},
       {"tag": "wardrobe_11", "count": 9, "category": "wardrobe"}
@@ -48,6 +53,7 @@ INPUT:
   },
   "step_1": {
     "action": "make a left turn",
+    "scene_context": ["room", "equipment", "hallway", "store", "fill"],
     "all_tag_rankings": [
       {"tag": "wardrobe_11", "count": 6, "category": "wardrobe"},
       {"tag": "lamp_20", "count": 3, "category": "lamp"}
@@ -55,6 +61,7 @@ INPUT:
   },
   "step_2": {
     "action": "move_forward",
+    "scene_context": ["living room", "sofa", "desk", "plant", "window"],
     "all_tag_rankings": [
       {"tag": "desk_42", "count": 7, "category": "desk"},
       {"tag": "plant_13", "count": 5, "category": "plant"}
@@ -63,7 +70,7 @@ INPUT:
 }
 
 OUTPUT:
-Move forward past the radiator, make a left turn by the wardrobe, then continue toward the plant and stop there.
+Walk through the store past the radiator, make a left turn in the hallway by the wardrobe, then continue across the living room toward the plant and stop there.
 ```
 Please get the output according to the above prompts and the following INPUT. Think step by step.
 INPUT:

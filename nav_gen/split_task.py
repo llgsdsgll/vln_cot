@@ -16,6 +16,9 @@ from gpt import gpt4o_mini, gpt4o
 from tqdm import tqdm
 from debug_scene_instance_boxes import generate_scene_instance_box_debug
 
+_ram_initialized = False
+_ram_init_signature = None
+
 
 def _cuda_runtime_supported():
     if not torch.cuda.is_available():
@@ -57,6 +60,16 @@ def init_model(args):
     global transform 
     global ram_model 
     global device
+    global _ram_initialized
+    global _ram_init_signature
+
+    init_signature = (
+        getattr(args, "ram_model", None),
+        getattr(args, "ram_device", "auto"),
+        getattr(args, "ram_logs", None),
+    )
+    if _ram_initialized:
+        return
 
     pretrained = args.ram_model
     device = _resolve_ram_device(args)
@@ -86,6 +99,9 @@ def init_model(args):
     # redirect stdout and stderr to logging module
     sys.stdout = LoggerWriter(logger.info)
     sys.stderr = LoggerWriter(logger.error)
+
+    _ram_initialized = True
+    _ram_init_signature = init_signature
 
 
 def _debug_safe_name(text, max_length=80):
@@ -219,6 +235,7 @@ def _build_instruction_tags_from_scene_instances(trail, scene_instance_payload=N
         rankings = step_record.get("all_tag_rankings") or seg.get("all_tag_rankings", [])
         tags[f"step_{local_step_index}"] = {
             "action": seg["label"],
+            "scene_context": seg.get("ram_scene_tags", []),
             "all_tag_rankings": [
                 {
                     "tag": item.get("tag") or item.get("object_id"),
@@ -647,6 +664,11 @@ def segment_trajectory(
                     "images": copied_images,
                 }
             )
+        # Get RAM scene-level tags before deleting obs
+        try:
+            seg["ram_scene_tags"] = batch_ram(seg["obs"])
+        except Exception:
+            seg["ram_scene_tags"] = []
         del seg['obs']
 
     if subtraj_debug_dir:
@@ -786,6 +808,8 @@ class LoggerWriter:
          
 
 def split_traj(args):
+    init_model(args)
+
     task_data = args.task_path
     task_dataset = TrainDataset(task_data)
     debug_root = _get_split_debug_root(args)
