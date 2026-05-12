@@ -1,9 +1,9 @@
 # NavGen 代码流程说明
 
-更新时间：2026-05-07
+更新时间：2026-05-11
 
 本文档按 `nav_gen` 的实际执行顺序来讲解代码，而不是按文件列表逐个介绍。
-如果你想回答“从运行 `python main.py` 开始，NavGen 到底做了什么”，这份文档就是为这个问题写的。
+如果你想回答"从运行 `python main.py` 开始，NavGen 到底做了什么"，这份文档就是为这个问题写的。
 
 说明：
 
@@ -113,6 +113,8 @@ python main.py
 
 #### C. Habitat-Sim / 轨迹执行相关
 
+##### C1. 命令行参数
+
 - `scene`
 - `scene_dataset`
 - `sim_gpu_device`
@@ -127,6 +129,344 @@ python main.py
 - `success_view_radius_max`
 - `success_view_radius_step`
 - `success_view_angle_step`
+
+##### C2. 整体架构
+
+轨迹生成不是 LLM 实时规划出来的，而是采用了 **"LLM 定义目标序列 + Habitat 自动导航执行"** 的分层策略：
+
+```text
+LLM → 定义子目标序列 (Move_to / Stop_at)
+Habitat GreedyGeodesicFollower → 逐步导航执行
+```
+
+整个轨迹执行的入口是 `dataset_gen.py` 中的 `eval_for_one_task(args, config)`，对每个任务构造一个 `SceneSimulator` 对象后在 Habitat 中循环执行导航动作。
+
+##### C3. 起点采样策略
+
+`SceneSimulator.__init__()`（`simulation.py:49-51`）：
+
+1. 在 NavMesh 上调用 `pathfinder.get_random_navigable_point()` 随机采样一个可导航点
+2. 位置做了偏移修正：`sample_navigable_point - [0, 0, -0.25]`
+3. 初始 yaw 固定为 `180°`
+4. 初始化时先执行一次 `move_forward`，获取初始观测
+
+这意味着**每次任务的起点是随机的**，同一任务在不同 trial 可能从不同位置出发。
+
+##### C4. 动作空间定义
+
+`config.py:132-143` 定义了三个离散动作：
+
+| 动作 | 位移/旋转量 |
+|------|------------|
+| `move_forward` | 0.25m |
+| `turn_left` | 30° |
+| `turn_right` | 30° |
+
+所有导航都基于这个固定步长的动作空间，yaw 通过手动维护（`self.yaw`），范围 `[-180, 180]`。
+
+##### C5. 目标选择策略（核心）
+
+这是轨迹生成中最关键的策略，涉及三层递进：
+
+###### C5.1 候选物体枚举（`get_target_candidates`，`simulation.py:217-248`）
+
+- 遍历场景语义信息，在指定 **region** 内找到所有同名物体实例
+- 收集每个实例的：`center`（AABB 中心）、`semantic_id`、`object_id`
+- 结果通过 `target_candidate_cache` 缓存，同一目标只计算一次
+
+###### C5.2 可见视点采样（`get_visible_viewpoints` → `_sample_visible_viewpoints_for_candidate`，`simulation.py:318-381`）
+
+围绕每个候选物体，在多圈多角度采样视点：
+
+```text
+半径: 0.75m → 2.5m（步长 0.5m）
+角度: 0° → 360°（步长 30°）
+```
+
+具体流程：
+
+1. 在 `(goal_center + radius·sin(angle), goal_center_y, goal_center + radius·cos(angle))` 生成候选点
+2. 通过 `pathfinder.snap_point()` 将点映射到 NavMesh 上的可导航点
+3. 对每个可导航点，计算**朝向物体中心的 yaw**（`_goal_center_to_saved_yaw`）
+4. **关键步骤**：将 agent "瞬移"到该位置 + 朝向，通过前视 semantic sensor 计算 `semantic_id` 的像素数（`_semantic_pixels_for_pose`）
+5. 只保留像素数 ≥ `success_visible_pixels`（默认 25）的视点
+6. 视点排序：先按像素数降序，再按距离升序
+
+这一步会做 **pose capture/restore**（`simulation.py:300-310`），模拟完后恢复 agent 原状态，不影响真实执行。
+
+###### C5.3 最优目标选择（`get_goal_info`，`simulation.py:399-444`）
+
+- 从所有可见视点中，对每个视点计算从当前 agent 位置的 **geodesic distance**
+- 选择 geodesic distance **最小**的视点作为导航目标
+- 如果完全找不到可见视点 → 返回 `(inf, None)`，任务判为 **unreachable**，直接终止
+
+**策略意义**：不是导航到物体几何中心，而是导航到"能看见物体"的最近位置。这确保了 agent 到达目标时确实能看到目标，而不只是距离够近。
+
+##### C6. 动作决策策略
+
+导航过程中有三种动作决策模式，按优先级排列：
+
+###### C6.1 远距离导航：`GreedyGeodesicFollower`
+
+当 `geo_dis >= success_dis` 时，调用 `follower.next_action_along(goal_pos)`。这是 Habitat 自带的贪心最短路径跟随器，使用 NavMesh 进行路径规划。
+
+> 源码路径：
+> - Python 层：`habitat_sim/nav/greedy_geodesic_follower.py`（位于 `habitat_sim-0.3.1` egg 包内）
+> - C++ 核心实现：`esp/nav/GreedyFollower.cpp`（位于 `/home/gs/my_test/habitat/habitat-sim/src/esp/nav/`）
+
+###### C6.1.1 项目中的初始化参数
+
+`simulation.py:56-64` 构造 follower 时传入的参数：
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `goal_radius` | 1.0m | agent 距目标 <1m 时 follower 返回 STOP |
+| `forward_key` | `"move_forward"` | 前进动作名 |
+| `left_key` | `"turn_left"` | 左转动作名 |
+| `right_key` | `"turn_right"` | 右转动作名 |
+| `fix_thrashing` | True（默认） | 启用振荡修复 |
+| `thrashing_threshold` | 16（默认） | 连续 16 步交替转向判为振荡 |
+
+结合 `config.py:132-143` 的动作空间定义：
+- `move_forward` 步长 = 0.25m → `forwardAmount_` = 0.25m
+- `turn_left/right` 旋转 = 30° → `turnAmount_` = 30°（≈0.5236 rad）
+
+###### C6.1.2 Python 层入口（`next_action_along`）
+
+`greedy_geodesic_follower.py:148-167`：
+
+```python
+def next_action_along(self, goal_pos: np.ndarray) -> Any:
+    # 1. 如果目标位置变了，先 reset 内部状态
+    if self.last_goal is None or not np.allclose(goal_pos, self.last_goal):
+        self.reset()
+        self.last_goal = goal_pos
+
+    # 2. 获取当前 agent 状态
+    state = self.agent.state
+
+    # 3. 调用 C++ impl 的核心方法
+    next_act = self.impl.next_action_along(
+        quat_to_magnum(state.rotation), state.position, goal_pos
+    )
+
+    # 4. 把 C++ CODES 枚举映射回 Python action 字符串
+    if next_act == GreedyFollowerCodes.ERROR:
+        raise errors.GreedyFollowerError()
+    return self.action_mapping[next_act]
+```
+
+`action_mapping` 将 C++ 的枚举码映射为实际动作字符串：
+
+- `STOP` → `"stop"`
+- `FORWARD` → `"move_forward"`
+- `LEFT` → `"turn_left"`
+- `RIGHT` → `"turn_right"`
+
+###### C6.1.3 C++ 核心实现（`nextActionAlong`）
+
+`GreedyFollower.cpp:158-186`，核心逻辑分五步：
+
+1. 通过 pathfinder 计算当前到目标的 geodesic shortest path
+2. 如果有振荡修复（thrashing fix）待执行的动作序列，优先消耗它
+3. 否则调用 `nextBestPrimAlong` 计算当前最佳 motion primitive
+4. 如果检测到振荡，把最佳 primitive 反转存入 `thrashingActions_`，从反转序列中取下一个动作
+5. 正常情况，返回 primitive 的第一个动作
+
+```cpp
+CODES nextActionAlong(const RigidState& start, const Vector3& end) {
+    // Step 1: 计算 geodesic path
+    ShortestPath path;
+    path.requestedStart = start.translation;
+    path.requestedEnd = end;
+    pathfinder_->findPath(path);
+
+    CODES nextAction;
+    if (fixThrashing_ && thrashingActions_.size() > 0) {
+        // Step 2: 优先消耗振荡修复序列
+        nextAction = thrashingActions_.back();
+        thrashingActions_.pop_back();
+    } else {
+        // Step 3: 计算最佳 primitive
+        const auto nextActions = nextBestPrimAlong(start, path);
+        if (nextActions.empty()) {
+            nextAction = CODES::ERROR;
+        } else if (fixThrashing_ && isThrashing()) {
+            // Step 4: 检测到振荡 → 反转 primitive 作为修复
+            thrashingActions_ = {nextActions.rbegin(), nextActions.rend()};
+            nextAction = thrashingActions_.back();
+            thrashingActions_.pop_back();
+        } else {
+            // Step 5: 返回 primitive 的第一个动作
+            nextAction = nextActions[0];
+        }
+    }
+    actions_.push_back(nextAction);
+    return actions_.back();
+}
+```
+
+###### C6.1.4 核心算法：基于 Motion Primitive 的贪心规划（`nextBestPrimAlong`）
+
+`GreedyFollower.cpp:81-138`，这是 follower 最核心的方法。
+
+**Motion Primitive 的定义**：所有 primitive 的形式是 `[turn_left]*n + move_forward` 或 `[turn_right]*n + move_forward`，其中 `0 <= n < π/turnAmount`。
+
+在本项目配置下（`turnAmount` = 30°），最大转向次数 = π/0.5236 ≈ 6，primitive 集合为：
+
+```text
+forward              (0° 转向 + 前进)
+left + forward       (30° 左转 + 前进)
+left*2 + forward     (60° 左转 + 前进)
+left*3 + forward     (90° 左转 + 前进)
+left*4 + forward     (120° 左转 + 前进)
+left*5 + forward     (150° 左转 + 前进)
+right + forward      (30° 右转 + 前进)
+right*2 + forward    (60° 右转 + 前进)
+right*3 + forward    (90° 右转 + 前进)
+right*4 + forward    (120° 右转 + 前进)
+right*5 + forward    (150° 右转 + 前进)
+```
+
+共 **12 个 primitive**。
+
+**评估流程**：算法维护两个 dummy node（`leftDummyNode_` 和 `rightDummyNode_`），从当前 agent 状态出发，逐步模拟左转/右转，在每个转向角度下都尝试前进一步并计算奖励：
+
+```cpp
+for (float angle = 0; angle < π; angle += turnAmount) {
+    // 对 leftDummyNode_ 当前朝向，尝试 + forward，计算 reward
+    float leftReward = computeReward(leftDummyNode_, path, leftPrim.size());
+    // 对 rightDummyNode_ 当前朝向，尝试 + forward，计算 reward
+    float rightReward = computeReward(rightDummyNode_, path, rightPrim.size());
+
+    // 更新最佳 primitive
+    if (leftReward > bestReward) {
+        bestPrim = leftPrim; bestPrim.push_back(FORWARD);
+    }
+    if (rightReward > bestReward) {
+        bestPrim = rightPrim; bestPrim.push_back(FORWARD);
+    }
+
+    // 早停：如果 reward 已经足够好 (>0.99)，不再继续搜索更大转向角度
+    if (bestReward > 0.99) break;
+
+    // 为下一轮准备：给 dummy node 各做一次转向
+    leftPrim.push_back(LEFT);  turnLeft_(&leftDummyNode_);
+    rightPrim.push_back(RIGHT); turnRight_(&rightDummyNode_);
+}
+```
+
+###### C6.1.5 奖励函数（`computeReward`）
+
+`GreedyFollower.cpp:60-79`，这是 primitive 选择的决策依据。奖励函数有四个维度：
+
+```cpp
+float computeReward(const SceneNode& node, const ShortestPath& path, size_t primLen) {
+    TryStepResult tryStepRes = tryStep(node, path.requestedEnd);
+
+    return (
+        // 维度 1: geodesic distance 减少量（越大越好，说明沿这个方向前进更接近目标）
+        (path.geodesicDistance - tryStepRes.postGeodesicDistance) / forwardAmount_
+    )
+    + (
+        // 维度 2: 倾向更短的 primitive（避免不必要的转向）
+        -0.0125 * primLen
+        // 维度 3: 碰撞惩罚
+        - (tryStepRes.didCollide ? collisionCost_ : 0.0)    // collisionCost_ = 0.25
+        // 维度 4: 靠近障碍物惩罚（距障碍物 <0.2m 时额外惩罚）
+        - (tryStepRes.postDistanceToClosestObstacle < closeToObsThreshold_ ? 0.05 : 0.0)
+    );
+}
+```
+
+| 维度 | 权重/值 | 作用 |
+|------|---------|------|
+| geodesic 进展 | `1/forwardAmount_`（≈4.0） | 推动向目标靠近 |
+| primitive 长度 | `-0.0125` | 倾向更少的转向 |
+| 碰撞惩罚 | `-0.25` | 避免撞墙 |
+| 近障碍惩罚 | `-0.05`（阈值 0.2m） | 避免贴墙走 |
+
+`tryStep` 在 dummy node 上模拟前进一步，然后计算：
+- 模拟后的 geodesic distance 到目标
+- 模拟后位置到最近障碍物的距离（`distanceToClosestObstacle`）
+- 是否碰撞（`didCollide`）
+
+###### C6.1.6 振荡修复机制（`isThrashing`）
+
+`GreedyFollower.cpp:140-156`：如果最近 `thrashingThreshold_`（默认 16）步动作都是左-右交替（`LEFT, RIGHT, LEFT, RIGHT...`），判定为振荡。
+
+修复方式：当检测到振荡时，把计算出的下一个 best primitive **反转**（`rbegin` → `rend`），让 agent 执行反转后的动作序列来跳出振荡。
+
+例如：如果最佳 primitive 是 `[LEFT, FORWARD]`，反转后变成 `[FORWARD, LEFT]`，先前进再左转，打破振荡循环。
+
+###### C6.1.7 关键行为特征总结
+
+1. **不是简单路径跟踪**：follower 不是"先找完整路径再沿路径走"，而是**每一步都重新在所有 motion primitive 上做贪心选择**——模拟每一种可能的转向+前进组合，选 reward 最高的
+2. **奖励函数是核心**：选择 primitive 的依据是"沿这个方向前进一步后，geodesic distance 减少最多，且不碰撞、不贴墙、转向最少"
+3. **早停优化**：如果某个 primitive 的 reward 已经 > 0.99（接近最优），不再继续搜索更大的转向角度
+4. **振荡修复**：检测到连续左右交替时，反转 primitive 序列来跳出
+5. **goal_radius = 1.0m**：follower 自身认为到达的条件是 geodesic distance < 1m，但项目在外层用 `success_dis` + visibility 做了更严格的二次判定
+
+###### C6.2 近距离朝向对齐：`get_goal_pose_alignment_action`（`simulation.py:525-542`）
+
+当 `geo_dis < success_dis` 但目标不可见时触发：
+
+- 如果 `planar_distance > 0.6m`，退回到 `get_visibility_search_action`
+- 否则计算 `goal_yaw - current_yaw` 的差值
+- 偏差 > 15° → `turn_left` / `turn_right`
+- 偏差 ≤ 15° → 返回 `None`（表示对齐已完成，交给下一级策略）
+
+###### C6.3 近距离局部搜索：`get_visibility_search_action`（`simulation.py:502-523`）
+
+朝向对齐仍不够时：
+
+- 计算当前 yaw 与"朝向物体中心"方向的偏差
+- 偏差 > 15° → `turn_left` / `turn_right`
+- 偏差 ≤ 15° → `move_forward`（微调逼近）
+
+##### C7. 成功判定策略
+
+`dataset_gen.py:68-93`，双重条件：
+
+```python
+geo_dis < success_dis  AND  target_visible_in_front_view
+```
+
+- `geo_dis` 是到**可见目标视点**的 geodesic distance，不是到物体中心
+- `target_visible` 通过前视 semantic sensor 检查目标实例像素数 ≥ `success_visible_pixels`（默认 25）
+- 只有两者都满足才判子目标成功
+- 如果开了 `--allow_stop_without_visibility`，退回旧逻辑（只看距离）
+
+##### C8. 轨迹执行主循环
+
+`dataset_gen.py:35-137`，完整流程：
+
+```text
+for step in range(max_step):
+    1. 确定当前子目标 (target[success])
+    2. get_goal_info(success) → 选择导航目标视点
+    3. 如果 coord=None → unreachable, 终止任务
+    4. 如果 geo_dis=inf → 终止任务
+    5. 记录 pos/yaw/action 到 trial
+    6. 成功判定：
+       - 距离够 & 可见 → success++, 记录 stop, 下一个子目标
+       - 距离够 & 不可见 → 局部搜索（对齐 / 搜索动作）
+       - 距离不够 → GreedyGeodesicFollower 导航
+    7. actor() 执行动作 + 保存 6 视角图片
+```
+
+##### C9. 轨迹生成策略总结
+
+| 策略环节 | 方法 | 核心思想 |
+|---------|------|---------|
+| 起点 | NavMesh 随机采样 | 随机探索起点 |
+| 目标选择 | 可见视点最小 geodesic 距离 | 导航到"看得见"目标的位置 |
+| 远距离动作 | GreedyGeodesicFollower | 贪心最短路径 |
+| 近距离动作 | 朝向对齐 → 局部搜索 | 先对齐 yaw 再微调 |
+| 成功判定 | 距离 + 可见像素数双条件 | 确保"真看见"而非"刚好靠近" |
+| 失败处理 | unreachable 直接终止 | 避免无效轨迹 |
+
+核心设计理念是：**轨迹不只是"走到附近"，而是要"走到能看见目标的位置"**，这是 LH-VLN 数据集对导航质量的更高要求。
 
 #### D. split / RAM 相关
 
@@ -206,7 +546,7 @@ Region x: room_name -> [obj1, obj2, obj3, ...]
 
 这一步的本质是：
 
-- 从场景的语义统计中，整理出一个“给 LLM 看得懂的房间-物体字典”
+- 从场景的语义统计中，整理出一个"给 LLM 看得懂的房间-物体字典"
 
 ### 4.4 `gen_task()` 如何调用 LLM
 
@@ -224,7 +564,7 @@ Region x: room_name -> [obj1, obj2, obj3, ...]
 
 来组织任务。
 
-也就是说，当前长任务更像“去某个环境物体附近并停下”的序列，而不是“抓取-搬运-释放”的操作序列。
+也就是说，当前长任务更像"去某个环境物体附近并停下"的序列，而不是"抓取-搬运-释放"的操作序列。
 
 然后拼出最终 prompt，交给：
 
@@ -235,7 +575,7 @@ gpt4o_mini(args, args.prompt_path + "system.txt", prompt)
 注意：
 
 - 虽然函数名还叫 `gpt4o_mini`
-- 但现在底层已经是通过 `gpt.py` 走 DashScope 兼容接口，默认模型是 `qwen3.6-plus`
+- 但现在底层已经是通过 `gpt.py` 赆 DashScope 兼容接口，默认模型是 `qwen3.6-plus`
 
 ### 4.5 LLM 输出什么格式
 
@@ -334,7 +674,7 @@ dataset = TaskDataset(args)
 eval_for_one_task(args, config)
 ```
 
-这个函数是“在 Habitat 里执行整条长任务”的核心。
+这个函数是"在 Habitat 里执行整条长任务"的核心。
 
 ## 6. `SceneSimulator`：轨迹执行阶段的核心包装器
 
@@ -401,7 +741,7 @@ args.task_path + str(len(self.target)) + '/' + self.ins
 - `get_visible_viewpoints(target_index, min_pixels)`
   - 围绕候选物体采样可导航视点，并筛掉 semantic pixel 不足的视点
 - `get_goal_info(target_index)`
-  - 选择当前真正要导航的 goal：优先选“可见目标视点”，必要时再决定是否回退到物体中心 snap 点
+  - 选择当前真正要导航的 goal：优先选"可见目标视点"，必要时再决定是否回退到物体中心 snap 点
 - `get_target_visibility(target_index, min_pixels)`
   - 检查当前 front semantic sensor 里目标实例到底有没有真正出现
 - `get_info(success)`
@@ -446,7 +786,7 @@ for step in range(args.max_step):
 
 1. 根据当前 `success` 确定当前子目标
 2. 调用 `get_goal_info(success)` 选择当前要追踪的导航目标
-   - 先在目标物体周围采样“能看见目标”的候选视点
+   - 先在目标物体周围采样"能看见目标"的候选视点
    - 对每个候选视点计算 geodesic distance
    - 选 geodesic distance 最短的那个视点作为当前 goal
    - 如果完全找不到满足 `success_visible_pixels` 阈值的可见视点，则直接判 unreachable
@@ -471,7 +811,7 @@ and target_is_visible_in_front_view
 
 需要注意一点：
 
-- 这里的 `geo_dis` 默认是“到选中的可见目标视点”的 geodesic distance
+- 这里的 `geo_dis` 默认是"到选中的可见目标视点"的 geodesic distance
 - 不是简单地到物体几何中心的距离
 
 如果命令行打开：
@@ -510,7 +850,7 @@ action = task_sim.get_goal_pose_alignment_action(goal_center, goal_yaw)
 action = task_sim.get_visibility_search_action(goal_center)
 ```
 
-也就是说，当前实现不是“距离够了就盲目 stop”，而是会在目标附近继续做局部朝向调整 / 搜索，直到目标真正进入 front view，或者命中旧逻辑回退开关。
+也就是说，当前实现不是"距离够了就盲目 stop"，而是会在目标附近继续做局部朝向调整 / 搜索，直到目标真正进入 front view，或者命中旧逻辑回退开关。
 
 3. 否则调用：
 
@@ -531,7 +871,7 @@ task_sim.actor(action, step, success)
 
 ## 8. `actor()` 为什么很重要
 
-`SceneSimulator.actor()` 不只是执行动作，还负责“落图”。
+`SceneSimulator.actor()` 不只是执行动作，还负责"落图"。
 
 它会：
 
@@ -624,7 +964,7 @@ ram_plus(pretrained=args.ram_model, image_size=384, vit='swin_l')
 task/<len>/<instruction>/
 ```
 
-返回的是“任务目录路径”。
+返回的是"任务目录路径"。
 
 因为切分阶段真正要读的是：
 
@@ -653,7 +993,7 @@ path/success/trial_1/
 
 ### 10.4 `split_traj(args)` 如何按 target 切段
 
-它会遍历动作序列，并按“当前动作所属 target 是否改变”来切分。
+它会遍历动作序列，并按"当前动作所属 target 是否改变"来切分。
 
 一个 target 的连续轨迹，会被认为是一段候选轨迹。
 
@@ -663,32 +1003,226 @@ path/success/trial_1/
 
 ### 10.5 `segment_trajectory()` 如何把动作序列再切细
 
-这是第 3 步最关键的逻辑。
+这是第 3 步最关键的逻辑。函数位于 `split_task.py:507-708`。
 
-它做了四层处理：
+输入参数：
 
-1. 找连续转向段
-   - `turn_left`
-   - `turn_right`
+- `trajectory`：当前子目标对应的 `(action, target)` 列表
+- `obs_dic`：每个 step 对应的图片路径字典（`step_index -> {'front': path, ...}`）
+- `task`：任务目录路径
+- `key`：当前子轨迹在整个长轨迹中的全局起始 step offset
 
-2. 合并相邻/重叠的同向转弯段
+输出是一组 segment 字典列表，每个 segment 包含 `trajectory`、`start`、`end`、`label`、`target`、`scene tags` 等字段。
 
-3. 处理不同方向重叠段
-   - 合并成 `zigzag`
+#### 10.5.1 Step 1：识别连续同向转向段（`split_task.py:521-543`）
 
-4. 把剩下的空隙补成 `move_forward`
+算法用滑动窗口（长度 3）扫描动作序列，寻找"3 步中有至少 2 步是同向转向"的片段：
 
-于是，一段长轨迹会被切成多个小 segment，每个 segment 都有：
+```python
+i = 0
+while i <= n - 3:
+    window = trajectory[i:i + 3]
+    if window.count('turn_left') >= 2:
+        left_indices = [idx for idx, action in enumerate(window) if action == 'turn_left']
+        start = i + left_indices[0]
+        end = i + left_indices[-1]
+        segments.append((start, end, 'turn_left'))
+        i = end + 1  # 跳过已识别的段
+    else:
+        i += 1
+```
 
-- 起止 step
-- 动作标签
-  - `move_forward`
-  - `turn_left`
-  - `turn_right`
-  - `zigzag`
-  - 或更自然语言化的转弯描述
-- 对应观测图片
-- 当前 target
+同样的逻辑对 `turn_right` 重复一次。
+
+**关键细节**：
+- 窗口大小固定为 3，阈值固定为 2（即 3 步中 2 步同向转向即可触发）
+- 找到匹配后，`i` 直接跳到 `end + 1`，避免重叠识别
+- 如果不匹配，`i` 只前进 1 步，逐位扫描
+- 输出的 segment 格式为 `(start_index, end_index, label)`
+- 两次扫描独立进行：先扫 `turn_left`，再扫 `turn_right`
+
+**举例**：假设动作序列为 `[forward, left, left, forward, left, right, left, right]`
+
+- 扫描 `turn_left`：窗口 `[left, left, forward]` 在 i=1 处触发 → segment `(1, 2, 'turn_left')`
+- 扫描 `turn_right`：窗口 `[right, left, right]` 在 i=5 处触发 → segment `(5, 7, 'turn_right')`
+
+#### 10.5.2 Step 2：合并相邻/重叠的同向转弯段（`split_task.py:545-559`）
+
+将 Step 1 中找到的同向段排序后，逐个合并相邻或距离 ≤3 的同 label 段：
+
+```python
+merged_segments = []
+segments.sort()
+current_start, current_end, current_label = segments[0]
+for segment in segments[1:]:
+    start, end, label = segment
+    if start <= current_end + 3 and label == current_label:
+        # 合并：延伸当前段的 end
+        current_end = max(current_end, end)
+    else:
+        # 不合并：保存当前段，开始新段
+        merged_segments.append((current_start, current_end, current_label))
+        current_start, current_end, current_label = segment
+merged_segments.append((current_start, current_end, current_label))
+```
+
+**关键细节**：
+- 合并条件是 `start <= current_end + 3`，即两个同向段之间最多间隔 3 步仍会合并
+- 只有同 label 的段才能合并（`turn_left` 不会和 `turn_right` 合并）
+- 合并方式是取最大的 `end`，即将两段之间的间隔也纳入合并后的段
+
+**举例**：假设 Step 1 输出 `(1, 2, left)` 和 `(4, 5, left)`：
+- `4 <= 2 + 3` → 合并为 `(1, 5, left)`，中间的 step 3 也被纳入
+
+#### 10.5.3 Step 3：处理不同方向的重叠段 → zigzag（`split_task.py:561-577`）
+
+对合并后的段列表，如果连续两个不同方向的段有重叠或紧邻（`curr_end + 1 >= next_start`），合并为 `zigzag`：
+
+```python
+while len(temp) > 1:
+    curr_start, curr_end, curr_label = temp.pop(0)
+    next_start, next_end, next_label = temp.pop(0)
+    if curr_end + 1 >= next_start:
+        # 重叠或紧邻 → 合并为 zigzag
+        new_start = min(curr_start, next_start)
+        new_end = max(curr_end, next_end)
+        result_segments.append((new_start, new_end, "zigzag"))
+    else:
+        # 不重叠 → 保留当前段，把下一个段放回队列头部
+        result_segments.append((curr_start, curr_end, curr_label))
+        temp.insert(0, (next_start, next_end, next_label))
+if temp:
+    result_segments += temp
+```
+
+**关键细节**：
+- 重叠判断条件是 `curr_end + 1 >= next_start`，即只要两个段之间间隔 ≤1 就算重叠
+- zigzag 段的 range 取两个段的 min(start) ~ max(end)
+- 不重叠的段直接保留
+- 处理完后 `temp` 中可能还剩一个段，追加到结果
+
+**举例**：假设 Step 2 输出 `(1, 5, left)` 和 `(6, 8, right)`：
+- `5 + 1 >= 6` → 合并为 `(1, 8, zigzag)`，代表"左右交替转向"
+
+#### 10.5.4 Step 4：填充 move_forward 空隙 + 构建最终 segment（`split_task.py:579-611`）
+
+遍历所有转向/zigzag 段，在它们之间的空隙填充 `move_forward` 段：
+
+```python
+final_segments = []
+last_end = -1
+for seg_start, seg_end, label in result_segments:
+    # 如果两个段之间有空隙，补一个 move_forward 段
+    if last_end + 2 < seg_start:
+        final_segments.append({
+            "trajectory": task,
+            "start": last_end + 1 + key,
+            "end": seg_start - 2 + key,
+            "obs": [obs_dic[i]['front'] for i in range(last_end + 1 + key, seg_start - 1 + key)],
+            "label": "move_forward",
+            "target": target
+        })
+    # 添加当前转向/zigzag 段
+    final_segments.append({
+        "trajectory": task,
+        "start": seg_start - 1 + key,
+        "end": seg_end + key,
+        "obs": [obs_dic[i]['front'] for i in range(seg_start - 1 + key, seg_end + key + 1)],
+        "label": label if trajectory[seg_start - 1 : seg_end + 1].count(label) <= 3
+                 else "make a " + label.split("_")[-1] + " turn",
+        "target": target
+    })
+    last_end = seg_end
+```
+
+**关键细节**：
+
+1. **move_forward 空隙判定**：`last_end + 2 < seg_start`，即两个段之间至少间隔 2 步才补 `move_forward`。如果间隔只有 1 步（紧邻），不补。
+
+2. **全局 offset 修正**：所有 `start/end` 都加上 `key`（子轨迹在长轨迹中的全局起始 offset），使得索引映射到全局 step 序号。
+
+3. **label 的自然语言化**：转向段中如果该转向动作出现 >3 次，label 从 `turn_left` 变为 `"make a left turn"`。这是一个简单的阈值规则：
+   - 出现 ≤3 次 → 保持原始标签（如 `turn_left`、`turn_right`、`zigzag`）
+   - 出现 >3 次 → 改为自然语言描述（如 `"make a left turn"`）
+
+4. **转向段的 start 前移 1 步**：转向段的 `start` 用 `seg_start - 1`，即把转向前的一个 step 也纳入段中（可能是触发转向前的最后一步前进）。
+
+5. **尾部 move_forward**：如果最后一个转向段之后还有剩余步骤，补一个尾部 `move_forward` 段：
+
+```python
+if last_end < n - 1:
+    final_segments.append({
+        "trajectory": task,
+        "start": last_end + 1 + key,
+        "end": n - 1 + key,
+        "obs": [obs_dic[i]['front'] for i in range(last_end + 1 + key, n + key)],
+        "label": "move_forward",
+        "target": target
+    })
+```
+
+#### 10.5.5 完整处理流程示意
+
+假设动作序列为 `[forward, left, left, forward, right, right, forward, forward]`，全局 offset `key=10`：
+
+```text
+Step 1 (识别连续转向段):
+  - 扫描 turn_left: 窗口 [left, left, forward] 在 i=1 → segment (1, 2, 'turn_left')
+  - 扫描 turn_right: 窗口 [right, right, forward] 在 i=4 → segment (4, 5, 'turn_right')
+
+Step 2 (合并同向段):
+  - 只有两个段且方向不同，无法合并同向段
+  - merged_segments = [(1, 2, 'turn_left'), (4, 5, 'turn_right')]
+
+Step 3 (处理不同方向重叠 → zigzag):
+  - curr=(1,2,left), next=(4,5,right)
+  - 2+1 >= 4? → False (间隔1步不重叠)
+  - result_segments = [(1, 2, 'turn_left'), (4, 5, 'turn_right')]
+
+Step 4 (填充 move_forward):
+  - last_end=-1, seg=(1,2,left): -1+2 < 1 → 补 move_forward (0+10, -1+10)
+  - 添加 turn_left 段 (0+10, 2+10)
+  - last_end=2, seg=(4,5,right): 2+2 < 4 → 补 move_forward (3+10, 2+10)
+  - 添加 turn_right 段 (3+10, 5+10)
+  - last_end=5, 尾部剩余 step 6,7 → 补 move_forward (6+10, 7+10)
+
+最终 segments:
+  [{start:10, end:10, label:"move_forward"},
+   {start:10, end:12, label:"turn_left"},
+   {start:13, end:12, label:"move_forward"},
+   {start:13, end:15, label:"turn_right"},
+   {start:16, end:17, label:"move_forward"}]
+```
+
+#### 10.5.6 每个 segment 的最终数据结构
+
+`split_task.py:613-650` 为每个 segment 补充元信息：
+
+```python
+for step_index, seg in enumerate(final_segments):
+    seg["step_index"] = step_index              # 在局部段中的序号
+    seg["debug_subtraj_dir"] = subtraj_debug_dir  # 调试输出目录
+    seg["scene tags"] = []                      # 后续由 RAM / scene instance 填充
+    seg["all_tag_rankings"] = []                # 后续由 scene instance 填充
+```
+
+如果开启了调试模式（`subtraj_debug_dir` 不为 None），还会：
+
+1. 为每个 step 的 front 图片做一份拷贝，存到 `result3_step_images/step_xxx_label/` 目录
+2. 保存 `result2_segmented_steps.json`（包含压缩后的 step 列表）
+3. 保存 `result3_step_tags_and_images.json`（包含图片路径和标签）
+4. 如果 `scene_instance_options` 不为 None，调用 `generate_scene_instance_box_debug()` 做场景实例识别，将结果写回每个 segment 的 `scene tags` 和 `all_tag_rankings`
+
+#### 10.5.7 `segment_trajectory()` 的调用上下文
+
+`split_traj()` 函数（`split_task.py:788-886`）是外层调用者：
+
+1. 先按 target 切段（`action_dic[end][1] != target` 时切分）
+2. 对每个子轨迹做长度过滤（`end - start > 5`，至少 6 步）
+3. 调用 `segment_trajectory(trail, obs_dic, task, start, ...)` 做细切分
+4. 结果追加到全局 `trail_list`
+
+长度过滤的意义：太短的子轨迹（≤5 步）信息量不足，直接跳过不生成 step task。
 
 ### 10.6 `batch_ram(img_list)` 在这里扮演什么角色
 
@@ -699,7 +1233,7 @@ path/success/trial_1/
 3. 统计频次
 4. 取 top-5 tags
 
-这些 tags 会作为“这段局部轨迹的场景语义摘要”。
+这些 tags 会作为"这段局部轨迹的场景语义摘要"。
 
 ### 10.7 `split_traj(args)` 最终输出什么
 
@@ -806,9 +1340,9 @@ NavGen 的主链其实可以概括成：
 
 也就是：
 
-- 上游 LLM 负责“任务层级”
-- Habitat 负责“导航执行层级”
-- RAM 负责“局部视觉语义摘要”
+- 上游 LLM 负责"任务层级"
+- Habitat 负责"导航执行层级"
+- RAM 负责"局部视觉语义摘要"
 - 下游 LLM 再把局部片段转成更细粒度的 step task
 
 ## 13. 数据文件是怎么在各阶段流动的
@@ -823,7 +1357,7 @@ scene/*.txt + region CSV + prompt/*
   -> step_task/*.json
 ```
 
-如果你只是想抓住“看哪里”，最重要的几个产物就是：
+如果你只是想抓住"看哪里"，最重要的几个产物就是：
 
 1. `task/<len>/<instruction>/config.json`
    - 长任务定义
@@ -844,7 +1378,7 @@ scene/*.txt + region CSV + prompt/*
 
 - 隔离输出目录
 - 快速做小规模尝试
-- 收集 summary，方便判断“到底能不能跑通”
+- 收集 summary，方便判断"到底能不能跑通"
 
 ### `run_split_steps.py`
 
@@ -867,7 +1401,7 @@ scene/*.txt + region CSV + prompt/*
 
 用途：
 
-- 把某个目标物体周围采样到的“可见目标视点”画到 top-down map 上
+- 把某个目标物体周围采样到的"可见目标视点"画到 top-down map 上
 - 专门用来调试：
   - `success_visible_pixels`
   - `success_view_radius_*`
@@ -885,7 +1419,7 @@ scene/*.txt + region CSV + prompt/*
   - 文本标注
   - 2D 目标框
 
-这个脚本是本轮为了“人工核对 NavGen 输出是否合理”新增的可视化工具，不属于论文 NavGen 原始四步流水线。
+这个脚本是本轮为了"人工核对 NavGen 输出是否合理"新增的可视化工具，不属于论文 NavGen 原始四步流水线。
 
 说明：
 

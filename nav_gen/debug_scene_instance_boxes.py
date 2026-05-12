@@ -376,28 +376,86 @@ def _parse_subtraj_index(debug_json_path):
     return int(match.group(1))
 
 
+def _normalize_text(value):
+    return str(value or "").strip().lower()
+
+
+def _resolve_declared_target_from_global_start(context, payload):
+    global_start = payload.get("subtrajectory_global_start")
+    try:
+        global_start = int(global_start)
+    except (TypeError, ValueError):
+        return None
+
+    for entry in _flatten_entries(context.task_config):
+        if entry.get("global_step") != global_start:
+            continue
+        return {
+            "target_index": entry.get("trial_index"),
+            "category": entry.get("target"),
+            "region_id": entry.get("target_region_id"),
+            "region_name": entry.get("target_region_name"),
+            "match_source": "global_step_exact",
+            "matched_global_step": global_start,
+        }
+    return None
+
+
 def _resolve_declared_target(context, debug_json_path, payload):
-    target_index = _parse_subtraj_index(debug_json_path)
     payload_target = payload.get("target")
     task_objects = _coerce_list(context.task_config.get("Object"))
     task_regions = _coerce_list(context.task_config.get("Region"))
-
+    target_index = None
     category = payload_target
     region_id = None
+    region_name = None
+    match_source = "payload_target_only"
+    matched_global_step = None
+    subtraj_index = _parse_subtraj_index(debug_json_path)
 
-    if target_index is not None and target_index < len(task_objects):
-        category = task_objects[target_index] or category
-        if target_index < len(task_regions):
-            region_id = task_regions[target_index]
-    elif category in task_objects:
-        index = task_objects.index(category)
-        if index < len(task_regions):
-            region_id = task_regions[index]
+    resolved_from_start = _resolve_declared_target_from_global_start(context, payload)
+    if resolved_from_start is not None:
+        target_index = resolved_from_start.get("target_index")
+        category = resolved_from_start.get("category") or category
+        region_id = resolved_from_start.get("region_id")
+        region_name = resolved_from_start.get("region_name")
+        match_source = resolved_from_start.get("match_source") or match_source
+        matched_global_step = resolved_from_start.get("matched_global_step")
+    else:
+        normalized_payload_target = _normalize_text(payload_target)
+        matching_indices = [
+            index
+            for index, obj in enumerate(task_objects)
+            if _normalize_text(obj) == normalized_payload_target
+        ]
+        if len(matching_indices) == 1:
+            target_index = matching_indices[0]
+            category = task_objects[target_index] or category
+            if target_index < len(task_regions):
+                region_id = task_regions[target_index]
+            match_source = "payload_target_unique_match"
+        elif subtraj_index is not None and subtraj_index < len(task_objects):
+            target_index = subtraj_index
+            category = task_objects[target_index] or category
+            if target_index < len(task_regions):
+                region_id = task_regions[target_index]
+            match_source = "subtraj_index_fallback"
+        elif matching_indices:
+            target_index = matching_indices[0]
+            category = task_objects[target_index] or category
+            if target_index < len(task_regions):
+                region_id = task_regions[target_index]
+            match_source = "payload_target_first_match"
 
     return {
         "target_index": target_index,
         "category": category,
         "region_id": region_id,
+        "region_name": region_name,
+        "match_source": match_source,
+        "matched_global_step": matched_global_step,
+        "payload_target": payload_target,
+        "subtraj_index": subtraj_index,
     }
 
 

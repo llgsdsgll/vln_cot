@@ -7,6 +7,10 @@ Publishes to RViz:
   /task/navmesh        - Marker (triangle mesh)
   /task/trajectory     - Marker (line strip)
   /task/targets        - MarkerArray (spheres + text)
+
+Point cloud input:
+  - pointcloud.pcd     - preferred
+  - pointcloud.npy     - legacy fallback
 """
 import argparse
 import json
@@ -19,6 +23,8 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud2, PointField
 from visualization_msgs.msg import Marker, MarkerArray
 import struct
+
+from pcd_io import read_pcd
 
 
 FRAME_ID = 'map'
@@ -79,6 +85,21 @@ def build_pointcloud2(stamp, pts, colors=None):
     msg.data = data.astype(np.float32).tobytes()
     msg.is_dense = True
     return msg
+
+
+def load_pointcloud(data_dir):
+    pcd_path = os.path.join(data_dir, 'pointcloud.pcd')
+    if os.path.exists(pcd_path):
+        return read_pcd(pcd_path)
+
+    npy_path = os.path.join(data_dir, 'pointcloud.npy')
+    if not os.path.exists(npy_path):
+        raise FileNotFoundError(f'No point cloud found in {data_dir}: expected pointcloud.pcd or pointcloud.npy')
+
+    points = np.load(npy_path)
+    pc_color_path = os.path.join(data_dir, 'pointcloud_colors.npy')
+    colors = np.load(pc_color_path) if os.path.exists(pc_color_path) else None
+    return points, colors
 
 
 def build_navmesh_marker(stamp, verts, faces):
@@ -192,9 +213,7 @@ class TaskVisualizer(Node):
     def _load(self, d):
         data = {}
         data['traj']   = np.load(os.path.join(d, 'trajectory.npy'))
-        data['pc']     = np.load(os.path.join(d, 'pointcloud.npy'))
-        pc_color_path  = os.path.join(d, 'pointcloud_colors.npy')
-        data['pc_col'] = np.load(pc_color_path) if os.path.exists(pc_color_path) else None
+        data['pc'], data['pc_col'] = load_pointcloud(d)
         nav_v_path     = os.path.join(d, 'navmesh_verts.npy')
         nav_f_path     = os.path.join(d, 'navmesh_faces.npy')
         data['nav_v']  = np.load(nav_v_path) if os.path.exists(nav_v_path) else None

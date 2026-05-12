@@ -14,6 +14,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+from pcd_io import write_pcd
+
 
 def get_args():
     p = argparse.ArgumentParser()
@@ -33,6 +35,8 @@ def get_args():
                    help='Camera sensor height above agent for depth point cloud')
     p.add_argument('--padding', type=float, default=3.0,
                    help='Bounding box padding (m) for point cloud crop')
+    p.add_argument('--pointcloud_format', choices=['pcd', 'npy', 'both'], default='both',
+                   help='Output format for extracted point cloud')
     return p.parse_args()
 
 
@@ -406,9 +410,12 @@ def main():
         pc_verts, pc_colors = sample_mesh_pointcloud(glb, traj, args.padding, args.mesh_points)
     else:
         pc_verts, pc_colors = extract_pointcloud(sim, traj, args.padding, sensor_height=args.sensor_height)
-    np.save(os.path.join(args.output_dir, 'pointcloud.npy'), pc_verts)
-    if pc_colors is not None:
-        np.save(os.path.join(args.output_dir, 'pointcloud_colors.npy'), pc_colors)
+    if args.pointcloud_format in ('pcd', 'both'):
+        write_pcd(os.path.join(args.output_dir, 'pointcloud.pcd'), pc_verts, pc_colors)
+    if args.pointcloud_format in ('npy', 'both'):
+        np.save(os.path.join(args.output_dir, 'pointcloud.npy'), pc_verts)
+        if pc_colors is not None:
+            np.save(os.path.join(args.output_dir, 'pointcloud_colors.npy'), pc_colors)
     print(f'Point cloud: {len(pc_verts)} points')
 
     # Save task metadata
@@ -421,6 +428,7 @@ def main():
             'region_name': task_data.get('Region Name', []),
             'trajectory_meta': args.trajectory_meta,
             'pointcloud_source': args.pointcloud_source,
+            'pointcloud_format': args.pointcloud_format,
             'mesh_points': args.mesh_points if args.pointcloud_source == 'mesh' else None,
             'sensor_height': args.sensor_height,
         }, f, indent=2)
