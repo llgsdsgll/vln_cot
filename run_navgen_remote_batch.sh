@@ -55,6 +55,10 @@ Wrapper options:
   --max-attempts COUNT         Maximum total attempts used to reach the target
                                number of successful tasks. Default: 10 * --loop
                                Use 0 for no limit.
+  --training-data-mode         Keep step-task dataset outputs, but prune heavy
+                               debug/media artifacts before sync. Preserves
+                               step_task/*.json, *.subtasks.json,
+                               *.frame_info.json and *_frame_assets/.
   --keep-local-item            Keep each per-task local directory after it has
                                been synced. Default: off
   --cleanup-local              Remove the local batch directory after a
@@ -116,6 +120,7 @@ VIDEO_TARGET_BOX_SCOPE="instance"
 VIZ_EXPORT=1
 VIZ_SUBDIR="viz_topdown"
 PROGRESS_INTERVAL=10
+TRAINING_DATA_MODE=0
 NAVGEN_ARGS=()
 FORWARDED_ARGS=()
 LOOP_COUNT=""
@@ -240,6 +245,10 @@ while [[ $# -gt 0 ]]; do
     --max-attempts)
       MAX_ATTEMPTS="${2:?missing value for --max-attempts}"
       shift 2
+      ;;
+    --training-data-mode)
+      TRAINING_DATA_MODE=1
+      shift
       ;;
     --keep-local-item)
       KEEP_LOCAL_ITEM=1
@@ -544,6 +553,61 @@ cleanup_local_item() {
   fi
 }
 
+prune_task_trials_keep_task_json() {
+  local item_task_dir="$1"
+
+  if [[ ! -d "$item_task_dir" ]]; then
+    return
+  fi
+
+  while IFS= read -r -d '' trial_dir; do
+    find "$trial_dir" -mindepth 1 ! -name 'task.json' -exec rm -rf {} + 2>/dev/null || true
+  done < <(find "$item_task_dir" -type d -path '*/success/trial_1' -print0 2>/dev/null)
+}
+
+prune_split_debug_keep_jsons() {
+  local split_debug_dir="$1"
+
+  if [[ ! -d "$split_debug_dir" ]]; then
+    return
+  fi
+
+  find "$split_debug_dir" -type d \( -name 'result3_step_images' -o -name 'result4_scene_instance_boxes' \) -prune -exec rm -rf {} + 2>/dev/null || true
+  find "$split_debug_dir" -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.npy' -o -name '*.npz' -o -name '*.mp4' \) -delete 2>/dev/null || true
+}
+
+prune_item_for_training_data() {
+  local item_dir="$1"
+  local item_success="$2"
+
+  if [[ "$TRAINING_DATA_MODE" -eq 0 ]]; then
+    return
+  fi
+
+  rm -rf "$item_dir/$VIDEO_SUBDIR" "$item_dir/$VIZ_SUBDIR"
+
+  if [[ "$item_success" -eq 1 ]]; then
+    rm -f \
+      "$item_dir/logs/navgen_main.log" \
+      "$item_dir/logs/step_task_logs.txt" \
+      "$item_dir/logs/video_export.log" \
+      "$item_dir/logs/viz_export.log"
+    prune_task_trials_keep_task_json "$item_dir/task"
+    prune_split_debug_keep_jsons "$item_dir/logs/split_traj_debug"
+  else
+    rm -f \
+      "$item_dir/logs/navgen_main.log" \
+      "$item_dir/logs/step_task_logs.txt" \
+      "$item_dir/logs/video_export.log" \
+      "$item_dir/logs/viz_export.log"
+    rm -rf "$item_dir/logs/split_traj_debug"
+    rm -rf "$item_dir/step_task"
+    prune_task_trials_keep_task_json "$item_dir/task"
+  fi
+
+  find "$item_dir" -depth -type d -empty -delete 2>/dev/null || true
+}
+
 count_step_task_jsons() {
   local item_step_task_dir="$1"
   if [[ ! -d "$item_step_task_dir" ]]; then
@@ -828,6 +892,7 @@ echo "[INFO] Export viz        : $VIZ_EXPORT"
 echo "[INFO] Sensor height    : $RENDER_SENSOR_HEIGHT"
 echo "[INFO] Target successes  : $LOOP_COUNT"
 echo "[INFO] Progress interval : $PROGRESS_INTERVAL"
+echo "[INFO] Training mode     : $TRAINING_DATA_MODE"
 if [[ "$MAX_ATTEMPTS" -eq 0 ]]; then
   echo "[INFO] Max attempts      : unlimited"
 else
@@ -924,6 +989,7 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
   fi
 
   export_item_viz "$item_id" "$item_dir"
+  prune_item_for_training_data "$item_dir" "$item_success"
 
   final_item_dir="$(finalize_item_dir "$item_id" "$item_dir" "$item_bucket")"
 

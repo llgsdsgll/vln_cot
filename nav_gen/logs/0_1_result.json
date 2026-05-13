@@ -1,10 +1,10 @@
 {
-    "time cost": [
-        0.18398502511037906
+    "time cost": [],
+    "fail tasks": [
+        "Please head to the bedroom and pause right next to the electric guitar. Once you're there, make your way over to the kitchen and living area, approach the stove, and stop beside it. Finally, navigate into the office, find the drum, and come to a halt next to it"
     ],
-    "fail tasks": [],
-    "mean task step": 142.0,
-    "mean nav step": 47.333333333333336,
-    "mean task SR": 1.0,
-    "mean nav SR": 1.0
+    "mean task step": NaN,
+    "mean nav step": NaN,
+    "mean task SR": 0,
+    "mean nav SR": 0
 }
