@@ -1,10 +1,10 @@
 {
-    "time cost": [],
-    "fail tasks": [
-        "Guide Spot to the bicycle in the garage and halt there. Next, have it navigate to the aquarium in the bedroom and pause right beside it. Finally, head over to the bathroom to find the towel and stop next to it, taking advantage of Spot's low viewpoint for a close-up inspection"
+    "time cost": [
+        0.098419906547566
     ],
-    "mean task step": NaN,
-    "mean nav step": NaN,
-    "mean task SR": 0,
-    "mean nav SR": 0
+    "fail tasks": [],
+    "mean task step": 389.0,
+    "mean nav step": 129.66666666666666,
+    "mean task SR": 1.0,
+    "mean nav SR": 1.0
 }
