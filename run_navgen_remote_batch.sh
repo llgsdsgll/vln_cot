@@ -55,6 +55,10 @@ Wrapper options:
   --max-attempts COUNT         Maximum total attempts used to reach the target
                                number of successful tasks. Default: 10 * --loop
                                Use 0 for no limit.
+  --resume                     Resume an interrupted batch with the same
+                               --run-name. Reuses batch_summary.tsv, continues
+                               item numbering, and tries to recover a stale
+                               _running/item_xxxx directory.
   --training-data-mode         Keep step-task dataset outputs, but prune heavy
                                debug/media artifacts before sync. Preserves
                                step_task/*.json, *.subtasks.json,
@@ -121,6 +125,7 @@ VIZ_EXPORT=1
 VIZ_SUBDIR="viz_topdown"
 PROGRESS_INTERVAL=10
 TRAINING_DATA_MODE=0
+RESUME=0
 NAVGEN_ARGS=()
 FORWARDED_ARGS=()
 LOOP_COUNT=""
@@ -245,6 +250,10 @@ while [[ $# -gt 0 ]]; do
     --max-attempts)
       MAX_ATTEMPTS="${2:?missing value for --max-attempts}"
       shift 2
+      ;;
+    --resume)
+      RESUME=1
+      shift
       ;;
     --training-data-mode)
       TRAINING_DATA_MODE=1
@@ -423,7 +432,6 @@ mkdir -p \
   "$LOCAL_RUNNING_DIR" \
   "$LOCAL_RUN_DIR/$SUCCESS_BUCKET_NAME" \
   "$LOCAL_RUN_DIR/$FAILURE_BUCKET_NAME"
-printf "item_id\tstatus\tsuccess_progress\tstep_task_json_count\tvideo_count\tvideo_status\tlocal_item_dir\tremote_run_dir\n" > "$SUMMARY_FILE"
 
 ensure_remote_layout() {
   ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
@@ -493,6 +501,55 @@ sync_dir_contents() {
 
 sync_summary() {
   sync_file "$SUMMARY_FILE" "${REMOTE_RUN_DIR}/batch_summary.tsv"
+}
+
+write_summary_header() {
+  printf "item_id\tstatus\tsuccess_progress\tstep_task_json_count\tvideo_count\tvideo_status\tlocal_item_dir\tremote_run_dir\n" > "$SUMMARY_FILE"
+}
+
+summary_has_entries() {
+  [[ -f "$SUMMARY_FILE" ]] && awk 'NR > 1 { found = 1; exit } END { exit(found ? 0 : 1) }' "$SUMMARY_FILE"
+}
+
+max_recorded_item_index() {
+  if [[ ! -f "$SUMMARY_FILE" ]]; then
+    echo 0
+    return
+  fi
+  awk -F'\t' '
+    NR > 1 && $1 ~ /^item_[0-9]+$/ {
+      id = $1
+      sub(/^item_/, "", id)
+      n = id + 0
+      if (n > max_n) {
+        max_n = n
+      }
+    }
+    END { print max_n + 0 }
+  ' "$SUMMARY_FILE"
+}
+
+count_recorded_successes() {
+  if [[ ! -f "$SUMMARY_FILE" ]]; then
+    echo 0
+    return
+  fi
+  awk -F'\t' '
+    NR > 1 && $1 ~ /^item_[0-9]+$/ && $2 == "ok" { count += 1 }
+    END { print count + 0 }
+  ' "$SUMMARY_FILE"
+}
+
+fetch_remote_summary_if_needed() {
+  if [[ -f "$SUMMARY_FILE" ]]; then
+    return
+  fi
+
+  if ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "[ -f '$REMOTE_RUN_DIR/batch_summary.tsv' ]"; then
+    scp -P "$REMOTE_PORT" \
+      "${REMOTE_SPEC}:${REMOTE_RUN_DIR}/batch_summary.tsv" \
+      "$SUMMARY_FILE"
+  fi
 }
 
 append_summary() {
@@ -877,87 +934,23 @@ export_item_viz() {
   done < <(find "$item_task_dir" -name 'config.json' -print0 2>/dev/null)
 }
 
-echo "[INFO] Project root      : $PROJECT_ROOT"
-echo "[INFO] Conda env         : $CONDA_ENV"
-echo "[INFO] Local batch dir   : $LOCAL_RUN_DIR"
-echo "[INFO] Remote batch dir  : ${REMOTE_SPEC}:${REMOTE_RUN_DIR}"
-echo "[INFO] SIM GPU device    : $SIM_GPU_DEVICE"
-echo "[INFO] RAM device        : $RAM_DEVICE"
-echo "[INFO] Export videos     : $VIDEO_EXPORT"
-if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
-  echo "[INFO] Video subdir      : $VIDEO_SUBDIR"
-  echo "[INFO] Video params      : fps=${VIDEO_FPS}, size=${VIDEO_WIDTH}x${VIDEO_HEIGHT}, sensor_height=${RENDER_SENSOR_HEIGHT}, hfov=${VIDEO_HFOV}, frame_mode=${VIDEO_FRAME_MODE}, codec=${VIDEO_CODEC}, annotate=${VIDEO_ANNOTATE}, target_boxes=${VIDEO_TARGET_BOXES}, scope=${VIDEO_TARGET_BOX_SCOPE}"
-fi
-echo "[INFO] Export viz        : $VIZ_EXPORT"
-echo "[INFO] Sensor height    : $RENDER_SENSOR_HEIGHT"
-echo "[INFO] Target successes  : $LOOP_COUNT"
-echo "[INFO] Progress interval : $PROGRESS_INTERVAL"
-echo "[INFO] Training mode     : $TRAINING_DATA_MODE"
-if [[ "$MAX_ATTEMPTS" -eq 0 ]]; then
-  echo "[INFO] Max attempts      : unlimited"
-else
-  echo "[INFO] Max attempts      : $MAX_ATTEMPTS"
-fi
-echo "[INFO] Keep local item   : $KEEP_LOCAL_ITEM"
-echo "[INFO] Forwarded args    : ${FORWARDED_ARGS[*]:-(none)}"
+process_completed_item() {
+  local item_id="$1"
+  local item_dir="$2"
+  local item_status="$3"
+  local step_task_json_count
+  local task_success_output=0
+  local item_success=0
+  local item_summary_status=""
+  local item_bucket="$FAILURE_BUCKET_NAME"
+  local video_count=0
+  local video_status="disabled"
+  local final_item_dir=""
 
-detect_sync_mode
-echo "[INFO] Remote sync mode  : $SYNC_MODE"
-
-ensure_remote_layout
-sync_summary
-
-cd "$PROJECT_ROOT/nav_gen"
-
-attempt_count=0
-success_count=0
-
-while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
-  attempt_count=$((attempt_count + 1))
-
-  if [[ "$MAX_ATTEMPTS" -gt 0 ]] && [[ "$attempt_count" -gt "$MAX_ATTEMPTS" ]]; then
-    break
-  fi
-
-  item_id="$(printf 'item_%04d' "$attempt_count")"
-  item_dir="$LOCAL_RUNNING_DIR/$item_id"
-  item_task_dir="$item_dir/task"
-  item_step_task_dir="$item_dir/step_task"
-  item_log_dir="$item_dir/logs"
-  item_trail_list="$item_task_dir/trail_list.txt"
-  item_ram_log="$item_log_dir/step_task_logs.txt"
-  item_stdout_log="$item_log_dir/navgen_main.log"
-  item_video_dir="$item_dir/$VIDEO_SUBDIR"
-
-  mkdir -p "$item_task_dir" "$item_step_task_dir" "$item_log_dir" "$item_video_dir"
-
-  echo "[INFO] Running ${item_id} (attempt ${attempt_count}, success ${success_count}/${LOOP_COUNT})"
-
-  set +e
-  "$CONDA_EXE" run -n "$CONDA_ENV" env \
-    NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE" \
-    NAVGEN_RAM_DEVICE="$RAM_DEVICE" \
-    python main.py \
-      "${FORWARDED_ARGS[@]}" \
-      --loop 1 \
-      --render_sensor_height "$RENDER_SENSOR_HEIGHT" \
-      --task_path "${item_task_dir}/" \
-      --step_task_path "${item_step_task_dir}/" \
-      --ram_logs "$item_ram_log" \
-      --split_save_path "$item_trail_list" 2>&1 | tee "$item_stdout_log"
-  item_status=${PIPESTATUS[0]}
-  set -e
-
-  step_task_json_count="$(count_step_task_jsons "$item_step_task_dir")"
-  task_success_output=0
+  step_task_json_count="$(count_step_task_jsons "$item_dir/step_task")"
   if item_has_task_success_output "$item_dir"; then
     task_success_output=1
   fi
-  item_success=0
-  item_summary_status=""
-  item_bucket="$FAILURE_BUCKET_NAME"
-  video_count=0
-  video_status="disabled"
 
   if [[ "$item_status" -eq 0 ]] && item_has_step_task_output "$item_dir"; then
     item_bucket="$SUCCESS_BUCKET_NAME"
@@ -1004,8 +997,141 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
 
   append_summary "$item_id" "$item_summary_status" "${success_count}/${LOOP_COUNT}" "$step_task_json_count" "$video_count" "$video_status" "$final_item_dir"
   sync_item "$item_id" "$final_item_dir" "$item_bucket"
-
   cleanup_local_item "$final_item_dir"
+}
+
+recover_stale_running_items() {
+  local stale_items=()
+  local stale_item_dir=""
+  local stale_item_id=""
+  local stale_item_num=0
+
+  if [[ ! -d "$LOCAL_RUNNING_DIR" ]]; then
+    return
+  fi
+
+  while IFS= read -r stale_item_dir; do
+    stale_items+=("$stale_item_dir")
+  done < <(find "$LOCAL_RUNNING_DIR" -mindepth 1 -maxdepth 1 -type d -name 'item_*' | sort)
+
+  if [[ "${#stale_items[@]}" -eq 0 ]]; then
+    return
+  fi
+
+  for stale_item_dir in "${stale_items[@]}"; do
+    stale_item_id="$(basename "$stale_item_dir")"
+    stale_item_num=$((10#${stale_item_id#item_}))
+
+    if [[ "$stale_item_num" -le "$attempt_count" ]]; then
+      echo "[WARN] Removing stale _running dir already covered by summary: ${stale_item_id}"
+      rm -rf "$stale_item_dir"
+      continue
+    fi
+
+    if [[ "$stale_item_num" -gt $((attempt_count + 1)) ]]; then
+      echo "[ERROR] Found unexpected stale _running dir ${stale_item_id} while summary ends at item_$(printf '%04d' "$attempt_count"). Resolve manually." >&2
+      exit 1
+    fi
+
+    if item_has_step_task_output "$stale_item_dir" || item_has_task_success_output "$stale_item_dir"; then
+      echo "[INFO] Recovering interrupted item from _running: ${stale_item_id}"
+      attempt_count="$stale_item_num"
+      process_completed_item "$stale_item_id" "$stale_item_dir" 0
+    else
+      echo "[WARN] Removing incomplete stale _running dir with no recoverable outputs: ${stale_item_id}"
+      rm -rf "$stale_item_dir"
+    fi
+  done
+
+  rmdir "$LOCAL_RUNNING_DIR" 2>/dev/null || true
+  mkdir -p "$LOCAL_RUNNING_DIR"
+}
+
+echo "[INFO] Project root      : $PROJECT_ROOT"
+echo "[INFO] Conda env         : $CONDA_ENV"
+echo "[INFO] Local batch dir   : $LOCAL_RUN_DIR"
+echo "[INFO] Remote batch dir  : ${REMOTE_SPEC}:${REMOTE_RUN_DIR}"
+echo "[INFO] SIM GPU device    : $SIM_GPU_DEVICE"
+echo "[INFO] RAM device        : $RAM_DEVICE"
+echo "[INFO] Export videos     : $VIDEO_EXPORT"
+if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+  echo "[INFO] Video subdir      : $VIDEO_SUBDIR"
+  echo "[INFO] Video params      : fps=${VIDEO_FPS}, size=${VIDEO_WIDTH}x${VIDEO_HEIGHT}, sensor_height=${RENDER_SENSOR_HEIGHT}, hfov=${VIDEO_HFOV}, frame_mode=${VIDEO_FRAME_MODE}, codec=${VIDEO_CODEC}, annotate=${VIDEO_ANNOTATE}, target_boxes=${VIDEO_TARGET_BOXES}, scope=${VIDEO_TARGET_BOX_SCOPE}"
+fi
+echo "[INFO] Export viz        : $VIZ_EXPORT"
+echo "[INFO] Sensor height    : $RENDER_SENSOR_HEIGHT"
+echo "[INFO] Target successes  : $LOOP_COUNT"
+echo "[INFO] Progress interval : $PROGRESS_INTERVAL"
+echo "[INFO] Training mode     : $TRAINING_DATA_MODE"
+if [[ "$MAX_ATTEMPTS" -eq 0 ]]; then
+  echo "[INFO] Max attempts      : unlimited"
+else
+  echo "[INFO] Max attempts      : $MAX_ATTEMPTS"
+fi
+echo "[INFO] Keep local item   : $KEEP_LOCAL_ITEM"
+echo "[INFO] Forwarded args    : ${FORWARDED_ARGS[*]:-(none)}"
+echo "[INFO] Resume mode       : $RESUME"
+
+detect_sync_mode
+echo "[INFO] Remote sync mode  : $SYNC_MODE"
+
+ensure_remote_layout
+if [[ "$RESUME" -eq 1 ]]; then
+  fetch_remote_summary_if_needed
+  if [[ ! -f "$SUMMARY_FILE" ]]; then
+    echo "[ERROR] --resume was requested, but no existing batch_summary.tsv was found for $RUN_NAME." >&2
+    exit 1
+  fi
+else
+  write_summary_header
+fi
+
+attempt_count="$(max_recorded_item_index)"
+success_count="$(count_recorded_successes)"
+sync_summary
+cd "$PROJECT_ROOT/nav_gen"
+
+if [[ "$RESUME" -eq 1 ]]; then
+  recover_stale_running_items
+fi
+
+while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
+  attempt_count=$((attempt_count + 1))
+
+  if [[ "$MAX_ATTEMPTS" -gt 0 ]] && [[ "$attempt_count" -gt "$MAX_ATTEMPTS" ]]; then
+    break
+  fi
+
+  item_id="$(printf 'item_%04d' "$attempt_count")"
+  item_dir="$LOCAL_RUNNING_DIR/$item_id"
+  item_task_dir="$item_dir/task"
+  item_step_task_dir="$item_dir/step_task"
+  item_log_dir="$item_dir/logs"
+  item_trail_list="$item_task_dir/trail_list.txt"
+  item_ram_log="$item_log_dir/step_task_logs.txt"
+  item_stdout_log="$item_log_dir/navgen_main.log"
+  item_video_dir="$item_dir/$VIDEO_SUBDIR"
+
+  mkdir -p "$item_task_dir" "$item_step_task_dir" "$item_log_dir" "$item_video_dir"
+
+  echo "[INFO] Running ${item_id} (attempt ${attempt_count}, success ${success_count}/${LOOP_COUNT})"
+
+  set +e
+  "$CONDA_EXE" run -n "$CONDA_ENV" env \
+    NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE" \
+    NAVGEN_RAM_DEVICE="$RAM_DEVICE" \
+    python main.py \
+      "${FORWARDED_ARGS[@]}" \
+      --loop 1 \
+      --render_sensor_height "$RENDER_SENSOR_HEIGHT" \
+      --task_path "${item_task_dir}/" \
+      --step_task_path "${item_step_task_dir}/" \
+      --ram_logs "$item_ram_log" \
+      --split_save_path "$item_trail_list" 2>&1 | tee "$item_stdout_log"
+  item_status=${PIPESTATUS[0]}
+  set -e
+
+  process_completed_item "$item_id" "$item_dir" "$item_status"
   rmdir "$LOCAL_RUNNING_DIR" 2>/dev/null || true
 done
 
