@@ -14,8 +14,10 @@ def make_setting(args, scene_file, robot):
     rgb_sensor = True  # @param {type:"boolean"}
     front_rgb_only = bool(getattr(args, "front_rgb_only", False))
     front_semantic_sensor = bool(getattr(args, "front_semantic_sensor", False))
+    front_depth_sensor = bool(getattr(args, "front_depth_sensor", False))
     depth_sensor = not front_rgb_only  # @param {type:"boolean"}
     semantic_sensor = front_semantic_sensor or not front_rgb_only  # @param {type:"boolean"}
+    front_depth_enabled = front_depth_sensor or depth_sensor
 
     if robot == 'spot':
         default_sensor_height = 0.5
@@ -39,7 +41,7 @@ def make_setting(args, scene_file, robot):
         "color_sensor_l": rgb_sensor and not front_rgb_only,  # RGB sensor
         "color_sensor_r": rgb_sensor and not front_rgb_only,  # RGB sensor
         "color_sensor_3rd": rgb_sensor and not front_rgb_only,  # RGB sensor
-        "depth_sensor_f": depth_sensor,  # depth sensor
+        "depth_sensor_f": front_depth_enabled,  # depth sensor
         "depth_sensor_l": depth_sensor,  # depth sensor
         "depth_sensor_r": depth_sensor,  # depth sensor
         "semantic_sensor": semantic_sensor,  # Semantic sensor

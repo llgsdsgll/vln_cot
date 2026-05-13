@@ -1,4 +1,5 @@
 import argparse
+import bisect
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import numpy as np
 
 from export_trajectory_rgb_video import (
     _build_args,
+    _candidate_distance_key,
     _capture_frame,
     _coerce_list,
     _collect_scene_candidates,
@@ -311,6 +313,7 @@ class TaskReplayContext:
             hfov=hfov,
             sim_gpu_device=sim_gpu_device,
             enable_front_semantic=True,
+            enable_front_depth=False,
         )
         args.front_rgb_only = True
         args.front_semantic_sensor = True
@@ -322,6 +325,20 @@ class TaskReplayContext:
         self.simulator = SceneSimulator(args, self.task_config)
         self.scene_index = _collect_scene_instance_index(self.simulator)
         self.observation_lookup = _build_saved_observation_lookup(self.task_config)
+        self.timeline_entries = list(_flatten_entries(self.task_config))
+        self.global_step_lookup = {}
+        for entry in self.timeline_entries:
+            global_step = entry.get("global_step")
+            if global_step is None:
+                continue
+            try:
+                global_step = int(global_step)
+            except (TypeError, ValueError):
+                continue
+            existing_entry = self.global_step_lookup.get(global_step)
+            if existing_entry is None or existing_entry.get("action") == "stop":
+                self.global_step_lookup[global_step] = entry
+        self.sorted_global_steps = sorted(self.global_step_lookup)
         self.semantic_cache = {}
 
     def get_semantic_for_source_image(self, source_image_path, target_height, target_width):
@@ -336,7 +353,7 @@ class TaskReplayContext:
                 f"Could not map saved observation directory `{dir_name}` back to task.json entries."
             )
 
-        _, semantic_obs = _capture_frame(
+        _, semantic_obs, _ = _capture_frame(
             self.simulator,
             entry["pos"],
             entry["yaw"],
@@ -344,6 +361,42 @@ class TaskReplayContext:
         resized = _semantic_to_target_shape(semantic_obs, target_height, target_width)
         self.semantic_cache[cache_key] = resized
         return resized
+
+    def resolve_entry_for_global_step(self, global_step):
+        try:
+            requested_global_step = int(global_step)
+        except (TypeError, ValueError):
+            return None
+
+        exact_entry = self.global_step_lookup.get(requested_global_step)
+        if exact_entry is not None:
+            return {
+                "requested_global_step": requested_global_step,
+                "matched_global_step": requested_global_step,
+                "match_source": "exact",
+                "entry": exact_entry,
+            }
+
+        if not self.sorted_global_steps:
+            return None
+
+        previous_index = bisect.bisect_right(self.sorted_global_steps, requested_global_step) - 1
+        if previous_index >= 0:
+            matched_global_step = self.sorted_global_steps[previous_index]
+            return {
+                "requested_global_step": requested_global_step,
+                "matched_global_step": matched_global_step,
+                "match_source": "nearest_previous",
+                "entry": self.global_step_lookup[matched_global_step],
+            }
+
+        matched_global_step = self.sorted_global_steps[0]
+        return {
+            "requested_global_step": requested_global_step,
+            "matched_global_step": matched_global_step,
+            "match_source": "first_available",
+            "entry": self.global_step_lookup[matched_global_step],
+        }
 
     def close(self):
         if getattr(self, "simulator", None) is not None:
@@ -367,6 +420,85 @@ def _serialize_ranked_instance(instance_record):
         "count": int(instance_record.get("frame_count", 0)),
         "label": _build_instance_label(instance_record),
     }
+
+
+def _normalize_inverted_distance(distance_value, min_distance, max_distance):
+    if distance_value is None:
+        return 0.0
+    if max_distance <= min_distance:
+        return 1.0
+    normalized = 1.0 - ((float(distance_value) - float(min_distance)) / (float(max_distance) - float(min_distance)))
+    return float(max(0.0, min(1.0, normalized)))
+
+
+def _build_combined_ranked_instances(context, step_record, ranked_instances):
+    if not ranked_instances:
+        return [], None
+
+    step_end_resolution = context.resolve_entry_for_global_step(step_record.get("end"))
+    step_end_agent_state = None
+    distance_values = []
+
+    max_frame_count = max(int(item.get("frame_count", 0)) for item in ranked_instances)
+
+    if step_end_resolution is not None:
+        end_entry = step_end_resolution["entry"]
+        step_end_agent_state = {
+            "requested_global_step": int(step_end_resolution["requested_global_step"]),
+            "matched_global_step": int(step_end_resolution["matched_global_step"]),
+            "match_source": step_end_resolution["match_source"],
+            "pos": [float(value) for value in end_entry.get("pos", [])],
+            "yaw": float(end_entry.get("yaw", 0.0)),
+            "action": end_entry.get("action"),
+        }
+
+    for instance_record in ranked_instances:
+        frame_count = int(instance_record.get("frame_count", 0))
+        visibility_score = (float(frame_count) / float(max_frame_count)) if max_frame_count > 0 else 0.0
+        instance_record["visibility_score"] = float(visibility_score)
+        instance_record["end_distance_m"] = None
+        instance_record["end_distance_strategy"] = None
+        instance_record["distance_score"] = 0.0
+        instance_record["combined_score"] = float(visibility_score)
+
+        if step_end_resolution is None:
+            continue
+
+        distance_info = _candidate_distance_key(
+            context.simulator.pathfinder,
+            step_end_resolution["entry"]["pos"],
+            instance_record["center"],
+        )
+        distance_value = float(distance_info["distance"])
+        instance_record["end_distance_m"] = distance_value
+        instance_record["end_distance_strategy"] = distance_info["strategy"]
+        distance_values.append(distance_value)
+
+    min_distance = min(distance_values) if distance_values else None
+    max_distance = max(distance_values) if distance_values else None
+
+    for instance_record in ranked_instances:
+        distance_score = _normalize_inverted_distance(
+            instance_record.get("end_distance_m"),
+            min_distance,
+            max_distance,
+        )
+        instance_record["distance_score"] = float(distance_score)
+        instance_record["combined_score"] = float(instance_record["visibility_score"] + distance_score)
+
+    combined_ranked_instances = sorted(
+        ranked_instances,
+        key=lambda item: (
+            -float(item.get("combined_score", 0.0)),
+            -float(item.get("visibility_score", 0.0)),
+            float(item.get("end_distance_m")) if item.get("end_distance_m") is not None else float("inf"),
+            -int(item.get("total_area", 0)),
+            -int(item.get("max_area", 0)),
+            str(item.get("category") or ""),
+            int(item.get("semantic_id", -1)),
+        ),
+    )
+    return combined_ranked_instances, step_end_agent_state
 
 
 def _parse_subtraj_index(debug_json_path):
@@ -774,6 +906,11 @@ def _process_debug_json(
             step_record,
             ignore_category_substrings,
         )
+        combined_ranked_instances, step_end_agent_state = _build_combined_ranked_instances(
+            context,
+            step_record,
+            ranked_instances,
+        )
         step_output_dir = output_dir / (
             f"step_{step_record['step_index']:03d}_{_safe_name(step_record['label'])}"
         )
@@ -781,10 +918,14 @@ def _process_debug_json(
             _serialize_ranked_instance(instance_record)
             for instance_record in ranked_instances
         ]
-        serialized_selected_instances = serialized_ranked_instances[:top_k]
+        serialized_combined_ranked_instances = [
+            _serialize_ranked_instance(instance_record)
+            for instance_record in combined_ranked_instances
+        ]
+        serialized_selected_instances = serialized_combined_ranked_instances[:top_k]
         selected_instances, image_records = _annotate_step(
             step_record,
-            ranked_instances,
+            combined_ranked_instances,
             per_image_data,
             step_output_dir,
             min_pixels=min_pixels,
@@ -801,6 +942,12 @@ def _process_debug_json(
                 if instance_record["semantic_id"] == declared_target_semantic_id:
                     declared_target_rank = rank_index
                     break
+        declared_target_combined_rank = None
+        if declared_target_semantic_id is not None:
+            for rank_index, instance_record in enumerate(combined_ranked_instances, start=1):
+                if instance_record["semantic_id"] == declared_target_semantic_id:
+                    declared_target_combined_rank = rank_index
+                    break
 
         step_summaries.append(
             {
@@ -814,15 +961,31 @@ def _process_debug_json(
                     "count one vote for each visible semantic instance per frame, "
                     "ignore configured background categories, sort by frame_count then area"
                 ),
+                "combined_selection_rule": (
+                    "normalize frame_count and end-of-step robot-to-instance distance among "
+                    "all ranked instances in this step, then sum visibility_score and "
+                    "distance_score and sort by combined_score"
+                ),
                 "top_5_scene_tags": [
                     item["tag"]
                     for item in serialized_ranked_instances[:top_k]
                 ],
+                "top_5_combined_tags": [
+                    item["tag"]
+                    for item in serialized_combined_ranked_instances[:top_k]
+                ],
                 "all_tag_rankings": serialized_ranked_instances,
+                "combined_tag_rankings": serialized_combined_ranked_instances,
                 "declared_target_rank_in_step": declared_target_rank,
                 "declared_target_in_top_k": (
                     declared_target_rank is not None and declared_target_rank <= top_k
                 ),
+                "declared_target_combined_rank_in_step": declared_target_combined_rank,
+                "declared_target_in_combined_top_k": (
+                    declared_target_combined_rank is not None and declared_target_combined_rank <= top_k
+                ),
+                "step_end_agent_state": step_end_agent_state,
+                "selected_instances_source": "combined_tag_rankings",
                 "selected_instances": serialized_selected_instances,
                 "all_ranked_instances": serialized_ranked_instances,
                 "annotated_image_dir": str(step_output_dir),

@@ -1,0 +1,153 @@
+[system]:
+You are good at decomposing a single navigation instruction into a few coherent sub-instructions while preserving exact step coverage.
+[user]:
+The INPUT is a dictionary. The format is as follows:
+```
+{
+  "instruction": The already-generated full step-task instruction for one trail,
+  "target": {
+    "category": The final target category,
+    "object_id": The specific target instance id if available
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "action": The compressed action label for this step,
+      "source_start": The start index in the original source trajectory,
+      "source_end": The end index in the original source trajectory,
+      "scene_context": A list of scene-level tags,
+      "all_tag_rankings": [
+        {
+          "tag": A visible object instance id such as "radiator_10",
+          "count": In how many front-view frames this exact instance appears in this step,
+          "category": The semantic category of this instance
+        }
+      ],
+      "anchor_object_id": The anchor instance id already chosen for this step when available,
+      "anchor_category": The semantic category of that chosen anchor
+    }
+  ]
+}
+```
+
+Please split the existing `instruction` into a few natural subtasks that still belong to the same step task.
+
+Rules:
+- This is NOT a request to create new step tasks. All returned subtasks remain nested under the same parent step task.
+- Preserve the meaning and order of the original `instruction`.
+- Cover every compressed step in order without skipping any step.
+- Each subtask must correspond to exactly one entry from `steps`. Therefore each subtask must satisfy `step_index_start == step_index_end`.
+- Multiple consecutive subtasks are allowed to share the same `step_index` when they describe different semantic phases of the same action step.
+- Split subtasks according to concrete actions. For example, "walk forward toward the wardrobe" is one subtask, "turn left beside the wardrobe" is another subtask, and "continue forward toward the lamp" is another subtask.
+- Each subtask instruction should describe only the single action of its covered step. Do NOT combine multiple action phrases such as "move forward ... and turn left ..." into one subtask.
+- Even if two neighboring clauses use the same action family such as forward motion, split them into different subtasks when their semantic goal is different. For example, "move forward past the bottles" and "continue straight until you reach the armchair" should be two different subtasks, even if both map to the same `move_forward` step.
+- Treat different motion goals as different subtasks even when the verb is the same. A clause that says "past/through/by/near/along X" is one subtask, and a clause that says "until you reach/stop at/arrive at Y" is a different subtask.
+- Treat `through <space>` as scene-space wording rather than object-target wording. Phrases such as "move forward through the bedroom" or "continue through the hallway" describe traversing a surrounding space, while `past <object>` and `until you reach <object>` describe different landmark or destination goals that should stay explicit in the split subtasks.
+- Do not invent new actions, new landmarks, or new step ranges.
+- Use natural language for each subtask instruction.
+- Prefer explicit object mentions over pronouns. Avoid vague references such as "it", "there", or "them" when the original instruction context and step metadata make the referent clear.
+- When the parent instruction uses a pronoun, resolve it back to the most likely explicit object from the parent instruction, target, or step anchor, and write that object explicitly in the subtask instruction.
+- Keep each subtask instruction concise and local to its covered step range.
+- Output JSON only. Do not add markdown fences or extra text.
+
+Return exactly this JSON format:
+```
+{
+  "subtasks": [
+    {
+      "instruction": "Move forward past the couch.",
+      "step_index_start": 0,
+      "step_index_end": 0
+    }
+  ]
+}
+```
+
+Here is an example:
+```
+INPUT:
+{
+  "instruction": "Move forward through the dining room past the bottles, then continue straight until you reach the armchair.",
+  "target": {
+    "category": "armchair",
+    "object_id": "armchair_328"
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "action": "move_forward",
+      "source_start": 10,
+      "source_end": 24,
+      "scene_context": ["dining room", "bottles", "armchair"],
+      "all_tag_rankings": [
+        {"tag": "bottles_401", "count": 6, "category": "bottles"},
+        {"tag": "armchair_328", "count": 5, "category": "armchair"}
+      ],
+      "anchor_object_id": "bottles_401",
+      "anchor_category": "bottles"
+    }
+  ]
+}
+
+OUTPUT:
+{
+  "subtasks": [
+    {
+      "instruction": "Move forward through the dining room past the bottles.",
+      "step_index_start": 0,
+      "step_index_end": 0
+    },
+    {
+      "instruction": "Continue straight until you reach the armchair.",
+      "step_index_start": 0,
+      "step_index_end": 0
+    }
+  ]
+}
+```
+
+Another example:
+```
+INPUT:
+{
+  "instruction": "Move forward past the bottles, then continue straight until you reach the armchair.",
+  "target": {
+    "category": "armchair",
+    "object_id": "armchair_328"
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "action": "move_forward",
+      "source_start": 10,
+      "source_end": 24,
+      "scene_context": ["dining room", "bottles", "armchair"],
+      "all_tag_rankings": [
+        {"tag": "bottles_401", "count": 6, "category": "bottles"},
+        {"tag": "armchair_328", "count": 5, "category": "armchair"}
+      ],
+      "anchor_object_id": "bottles_401",
+      "anchor_category": "bottles"
+    }
+  ]
+}
+
+OUTPUT:
+{
+  "subtasks": [
+    {
+      "instruction": "Move forward past the bottles.",
+      "step_index_start": 0,
+      "step_index_end": 0
+    },
+    {
+      "instruction": "Continue straight until you reach the armchair.",
+      "step_index_start": 0,
+      "step_index_end": 0
+    }
+  ]
+}
+```
+
+Please get the output according to the above prompts and the following INPUT. Think step by step.
+INPUT:

@@ -28,6 +28,9 @@ Wrapper options:
                                trajectory RGB videos from every
                                */success/trial_1/task.json and every
                                generated step_task/*.json found in it.
+  --no-export-videos           Disable mp4 export for this run, but still
+                               export step-task frame assets and
+                               <step_task_stem>.frame_info.json.
   --video-subdir DIRNAME       Per-item local video output subdir.
                                Default: videos_action1fps_boxes
   --video-fps N                Exported video fps. Default: 1
@@ -45,6 +48,10 @@ Wrapper options:
   --video-target-boxes         Draw 2D boxes for target objects. Default: on
   --no-video-target-boxes      Disable target-object 2D boxes.
   --video-target-box-scope S   instance|class. Default: instance
+  --export-viz                 Export topdown visualization PNGs. Default: on
+  --no-export-viz              Disable topdown visualization export.
+  --progress-interval N        Print a progress milestone every N successful
+                               tasks. Default: 10
   --max-attempts COUNT         Maximum total attempts used to reach the target
                                number of successful tasks. Default: 10 * --loop
                                Use 0 for no limit.
@@ -108,6 +115,7 @@ VIDEO_TARGET_BOXES=1
 VIDEO_TARGET_BOX_SCOPE="instance"
 VIZ_EXPORT=1
 VIZ_SUBDIR="viz_topdown"
+PROGRESS_INTERVAL=10
 NAVGEN_ARGS=()
 FORWARDED_ARGS=()
 LOOP_COUNT=""
@@ -161,6 +169,10 @@ while [[ $# -gt 0 ]]; do
       VIDEO_EXPORT=1
       shift
       ;;
+    --no-export-videos)
+      VIDEO_EXPORT=0
+      shift
+      ;;
     --video-subdir)
       VIDEO_SUBDIR="${2:?missing value for --video-subdir}"
       shift 2
@@ -211,6 +223,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --video-target-box-scope)
       VIDEO_TARGET_BOX_SCOPE="${2:?missing value for --video-target-box-scope}"
+      shift 2
+      ;;
+    --export-viz)
+      VIZ_EXPORT=1
+      shift
+      ;;
+    --no-export-viz)
+      VIZ_EXPORT=0
+      shift
+      ;;
+    --progress-interval)
+      PROGRESS_INTERVAL="${2:?missing value for --progress-interval}"
       shift 2
       ;;
     --max-attempts)
@@ -347,6 +371,11 @@ case "$VIDEO_TARGET_BOX_SCOPE" in
     exit 1
     ;;
 esac
+
+if ! [[ "$PROGRESS_INTERVAL" =~ ^[0-9]+$ ]] || [[ "$PROGRESS_INTERVAL" -lt 1 ]]; then
+  echo "--progress-interval must be a positive integer, got: $PROGRESS_INTERVAL" >&2
+  exit 1
+fi
 
 if [[ ! -x "$CONDA_EXE" ]]; then
   echo "conda executable not found at $CONDA_EXE" >&2
@@ -522,17 +551,23 @@ count_step_task_jsons() {
     return
   fi
 
-  find "$item_step_task_dir" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d '[:space:]'
+  find "$item_step_task_dir" -maxdepth 1 -type f -name '*.json' ! -name '*.subtasks.json' ! -name '*.frame_info.json' 2>/dev/null | wc -l | tr -d '[:space:]'
 }
 
-item_has_success_output() {
+item_has_step_task_output() {
   local item_dir="$1"
-  local item_task_dir="$item_dir/task"
   local item_step_task_dir="$item_dir/step_task"
 
   if [[ "$(count_step_task_jsons "$item_step_task_dir")" -gt 0 ]]; then
     return 0
   fi
+
+  return 1
+}
+
+item_has_task_success_output() {
+  local item_dir="$1"
+  local item_task_dir="$item_dir/task"
 
   if [[ -d "$item_task_dir" ]] && [[ -n "$(find "$item_task_dir" -path '*/success/trial_1/task.json' -print -quit 2>/dev/null)" ]]; then
     return 0
@@ -555,66 +590,67 @@ export_item_videos() {
   local exported_task_videos=0
   local found_step_task_jsons=0
   local exported_step_task_videos=0
+  local exported_step_task_assets=0
   local exported_videos=0
 
   LAST_VIDEO_EXPORT_COUNT=0
   LAST_VIDEO_EXPORT_STATUS="disabled"
 
-  if [[ "$VIDEO_EXPORT" -eq 0 ]]; then
-    return 0
-  fi
-
   mkdir -p "$item_video_dir"
   : > "$item_video_log"
 
-  while IFS= read -r -d '' task_json; do
-    found_task_jsons=$((found_task_jsons + 1))
-    local rel_task_json="${task_json#$item_task_dir/}"
-    local rel_task_dir
-    rel_task_dir="$(dirname "$rel_task_json")"
-    local output_video="$item_video_dir/$rel_task_dir/trajectory_rgb.mp4"
+  if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+    while IFS= read -r -d '' task_json; do
+      found_task_jsons=$((found_task_jsons + 1))
+      local rel_task_json="${task_json#$item_task_dir/}"
+      local rel_task_dir
+      rel_task_dir="$(dirname "$rel_task_json")"
+      local output_video="$item_video_dir/$rel_task_dir/trajectory_rgb.mp4"
 
-    echo "[INFO] Exporting video for ${item_id}: ${rel_task_json}" | tee -a "$item_video_log"
+      echo "[INFO] Exporting video for ${item_id}: ${rel_task_json}" | tee -a "$item_video_log"
 
-    local export_cmd=(
-      "$CONDA_EXE" run -n "$CONDA_ENV" env
-      NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
-      python export_trajectory_rgb_video.py
-      --task_json "$task_json"
-      --output_video "$output_video"
-      --fps "$VIDEO_FPS"
-      --width "$VIDEO_WIDTH"
-      --height "$VIDEO_HEIGHT"
-      --sensor_height "$RENDER_SENSOR_HEIGHT"
-      --hfov "$VIDEO_HFOV"
-      --sim_gpu_device "$SIM_GPU_DEVICE"
-      --frame_mode "$VIDEO_FRAME_MODE"
-      --output_codec "$VIDEO_CODEC"
-    )
+      local export_cmd=(
+        "$CONDA_EXE" run -n "$CONDA_ENV" env
+        NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
+        python export_trajectory_rgb_video.py
+        --task_json "$task_json"
+        --output_video "$output_video"
+        --fps "$VIDEO_FPS"
+        --width "$VIDEO_WIDTH"
+        --height "$VIDEO_HEIGHT"
+        --sensor_height "$RENDER_SENSOR_HEIGHT"
+        --hfov "$VIDEO_HFOV"
+        --sim_gpu_device "$SIM_GPU_DEVICE"
+        --frame_mode "$VIDEO_FRAME_MODE"
+        --output_codec "$VIDEO_CODEC"
+      )
 
-    if [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
-      export_cmd+=(--annotate)
-    fi
+      if [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
+        export_cmd+=(--annotate)
+      fi
 
-    if [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
-      export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
-    fi
+      if [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
+        export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
+      fi
 
-    set +e
-    "${export_cmd[@]}" 2>&1 | tee -a "$item_video_log"
-    local export_status=${PIPESTATUS[0]}
-    set -e
+      set +e
+      "${export_cmd[@]}" 2>&1 | tee -a "$item_video_log"
+      local export_status=${PIPESTATUS[0]}
+      set -e
 
-    if [[ "$export_status" -ne 0 ]]; then
-      exported_videos=$exported_task_videos
-      LAST_VIDEO_EXPORT_COUNT="$exported_videos"
-      LAST_VIDEO_EXPORT_STATUS="task_export_failed:${export_status}"
-      echo "[ERROR] Video export failed for ${rel_task_json}; exit=${export_status}" | tee -a "$item_video_log" >&2
-      return 1
-    fi
+      if [[ "$export_status" -ne 0 ]]; then
+        exported_videos=$exported_task_videos
+        LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+        LAST_VIDEO_EXPORT_STATUS="task_export_failed:${export_status}"
+        echo "[ERROR] Video export failed for ${rel_task_json}; exit=${export_status}" | tee -a "$item_video_log" >&2
+        return 1
+      fi
 
-    exported_task_videos=$((exported_task_videos + 1))
-  done < <(find "$item_task_dir" -path '*/success/trial_1/task.json' -print0 2>/dev/null)
+      exported_task_videos=$((exported_task_videos + 1))
+    done < <(find "$item_task_dir" -path '*/success/trial_1/task.json' -print0 2>/dev/null)
+  else
+    echo "[INFO] MP4 export disabled for ${item_id}; exporting step-task frame assets + frame_info only." | tee -a "$item_video_log"
+  fi
 
   while IFS= read -r -d '' step_task_json; do
     found_step_task_jsons=$((found_step_task_jsons + 1))
@@ -623,7 +659,11 @@ export_item_videos() {
     local output_video="$item_video_dir/step_task/$step_task_stem.mp4"
 
     mkdir -p "$(dirname "$output_video")"
-    echo "[INFO] Exporting step-task video for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
+    if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+      echo "[INFO] Exporting step-task video for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
+    else
+      echo "[INFO] Exporting step-task frame assets for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
+    fi
 
     local step_export_cmd=(
       "$CONDA_EXE" run -n "$CONDA_ENV" env
@@ -641,12 +681,16 @@ export_item_videos() {
       --output_codec "$VIDEO_CODEC"
     )
 
-    if [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
+    if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
       step_export_cmd+=(--annotate)
     fi
 
-    if [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
+    if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
       step_export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
+    fi
+
+    if [[ "$VIDEO_EXPORT" -eq 0 ]]; then
+      step_export_cmd+=(--skip-video-output)
     fi
 
     set +e
@@ -657,16 +701,22 @@ export_item_videos() {
     if [[ "$step_export_status" -ne 0 ]]; then
       exported_videos=$((exported_task_videos + exported_step_task_videos))
       LAST_VIDEO_EXPORT_COUNT="$exported_videos"
-      LAST_VIDEO_EXPORT_STATUS="step_task_export_failed:${step_export_status}"
-      echo "[ERROR] Step-task video export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+      if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+        LAST_VIDEO_EXPORT_STATUS="step_task_export_failed:${step_export_status}"
+        echo "[ERROR] Step-task video export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+      else
+        LAST_VIDEO_EXPORT_STATUS="step_task_frame_assets_failed:${step_export_status}"
+        echo "[ERROR] Step-task frame asset export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+      fi
       return 1
     fi
 
-    exported_step_task_videos=$((exported_step_task_videos + 1))
-  done < <(find "$item_step_task_dir" -type f -name '*.json' -print0 2>/dev/null)
-
-  exported_videos=$((exported_task_videos + exported_step_task_videos))
-  LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+    if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+      exported_step_task_videos=$((exported_step_task_videos + 1))
+    else
+      exported_step_task_assets=$((exported_step_task_assets + 1))
+    fi
+  done < <(find "$item_step_task_dir" -type f -name '*.json' ! -name '*.subtasks.json' ! -name '*.frame_info.json' -print0 2>/dev/null)
 
   if [[ "$found_task_jsons" -eq 0 ]] && [[ "$found_step_task_jsons" -eq 0 ]]; then
     LAST_VIDEO_EXPORT_STATUS="no_task_or_step_task_json"
@@ -674,7 +724,14 @@ export_item_videos() {
     return 1
   fi
 
-  LAST_VIDEO_EXPORT_STATUS="ok:task=${exported_task_videos},step=${exported_step_task_videos},total=${exported_videos}"
+  if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+    exported_videos=$((exported_task_videos + exported_step_task_videos))
+    LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+    LAST_VIDEO_EXPORT_STATUS="ok:task=${exported_task_videos},step=${exported_step_task_videos},total=${exported_videos}"
+  else
+    LAST_VIDEO_EXPORT_COUNT=0
+    LAST_VIDEO_EXPORT_STATUS="frame_assets_only:step=${exported_step_task_assets}"
+  fi
   return 0
 }
 
@@ -767,8 +824,10 @@ if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
   echo "[INFO] Video subdir      : $VIDEO_SUBDIR"
   echo "[INFO] Video params      : fps=${VIDEO_FPS}, size=${VIDEO_WIDTH}x${VIDEO_HEIGHT}, sensor_height=${RENDER_SENSOR_HEIGHT}, hfov=${VIDEO_HFOV}, frame_mode=${VIDEO_FRAME_MODE}, codec=${VIDEO_CODEC}, annotate=${VIDEO_ANNOTATE}, target_boxes=${VIDEO_TARGET_BOXES}, scope=${VIDEO_TARGET_BOX_SCOPE}"
 fi
+echo "[INFO] Export viz        : $VIZ_EXPORT"
 echo "[INFO] Sensor height    : $RENDER_SENSOR_HEIGHT"
 echo "[INFO] Target successes  : $LOOP_COUNT"
+echo "[INFO] Progress interval : $PROGRESS_INTERVAL"
 if [[ "$MAX_ATTEMPTS" -eq 0 ]]; then
   echo "[INFO] Max attempts      : unlimited"
 else
@@ -825,33 +884,35 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
   set -e
 
   step_task_json_count="$(count_step_task_jsons "$item_step_task_dir")"
+  task_success_output=0
+  if item_has_task_success_output "$item_dir"; then
+    task_success_output=1
+  fi
   item_success=0
   item_summary_status=""
   item_bucket="$FAILURE_BUCKET_NAME"
   video_count=0
   video_status="disabled"
 
-  if [[ "$item_status" -eq 0 ]] && item_has_success_output "$item_dir"; then
+  if [[ "$item_status" -eq 0 ]] && item_has_step_task_output "$item_dir"; then
     item_bucket="$SUCCESS_BUCKET_NAME"
-    if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
-      if export_item_videos "$item_id" "$item_dir"; then
-        video_count="$LAST_VIDEO_EXPORT_COUNT"
-        video_status="$LAST_VIDEO_EXPORT_STATUS"
-        item_success=1
-        success_count=$((success_count + 1))
-        item_summary_status="ok"
-      else
-        video_count="$LAST_VIDEO_EXPORT_COUNT"
-        video_status="$LAST_VIDEO_EXPORT_STATUS"
-        item_summary_status="video_failed:${video_status}"
-      fi
-    else
+    if export_item_videos "$item_id" "$item_dir"; then
+      video_count="$LAST_VIDEO_EXPORT_COUNT"
+      video_status="$LAST_VIDEO_EXPORT_STATUS"
       item_success=1
       success_count=$((success_count + 1))
       item_summary_status="ok"
+    else
+      video_count="$LAST_VIDEO_EXPORT_COUNT"
+      video_status="$LAST_VIDEO_EXPORT_STATUS"
+      item_summary_status="video_failed:${video_status}"
     fi
   elif [[ "$item_status" -eq 0 ]]; then
-    item_summary_status="no_success_task"
+    if [[ "$task_success_output" -eq 1 ]]; then
+      item_summary_status="no_step_task_output"
+    else
+      item_summary_status="no_success_task"
+    fi
     if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
       video_status="skipped"
     fi
@@ -868,6 +929,9 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
 
   if [[ "$item_success" -eq 1 ]]; then
     echo "[INFO] ${item_id} produced a successful task (${success_count}/${LOOP_COUNT}); step-task jsons: ${step_task_json_count}; videos: ${video_count}"
+    if (( success_count % PROGRESS_INTERVAL == 0 )); then
+      echo "[MILESTONE] Successful tasks: ${success_count}/${LOOP_COUNT} | latest_item=${item_id} | remote_run=${REMOTE_RUN_DIR}"
+    fi
   else
     echo "[WARN] ${item_id} did not produce a successful task; status=${item_summary_status}, step-task jsons=${step_task_json_count}, video_status=${video_status}" >&2
   fi
