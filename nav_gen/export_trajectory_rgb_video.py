@@ -20,7 +20,7 @@ DEFAULT_WIDTH = 1280
 DEFAULT_HEIGHT = 744
 DEFAULT_SENSOR_HEIGHT = 1.0
 DEFAULT_HFOV = 86.0
-DEFAULT_FPS = 8
+DEFAULT_FPS = 1
 DEFAULT_OUTPUT_CODEC = "h264"
 DEFAULT_DEPTH_VIS_MAX_METERS = 10.0
 
@@ -1432,6 +1432,12 @@ def _extract_target_boxes(semantic_obs, target_spec, min_pixels=25):
                     {
                         "label": label_str,
                         "semantic_id": semantic_id,
+                        "object_id": spec.get("object_id"),
+                        "category": spec.get("category"),
+                        "subtask_numbers": list(spec.get("subtask_numbers") or []),
+                        "is_current_subtask_target": bool(
+                            spec.get("is_current_subtask_target")
+                        ),
                         "bbox": (
                             int(xs.min()),
                             int(ys.min()),
@@ -1460,21 +1466,40 @@ def _color_for_label(label):
 def _draw_target_boxes(frame, boxes, semantic_obs=None):
     for box in boxes:
         x1, y1, x2, y2 = box["bbox"]
-        color = _color_for_label(box["label"])
+        if box.get("is_current_subtask_target"):
+            color = (255, 191, 0)
+        else:
+            color = _color_for_label(box["label"])
         if semantic_obs is not None:
             mask = (semantic_obs == box["semantic_id"]).astype(np.uint8)
             overlay = frame.copy()
+            overlay_strength = 0.72 if box.get("is_current_subtask_target") else 0.5
             overlay[mask == 1] = (
-                overlay[mask == 1] * 0.5 + np.array(color[::-1], dtype=np.float32) * 0.5
+                overlay[mask == 1] * (1.0 - overlay_strength)
+                + np.array(color[::-1], dtype=np.float32) * overlay_strength
             ).astype(np.uint8)
             cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        thickness = 4 if box.get("is_current_subtask_target") else 2
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
 
-        label_text = box["label"]
+        subtask_numbers = [
+            int(item)
+            for item in (box.get("subtask_numbers") or [])
+            if item is not None
+        ]
+        label_tokens = []
+        if box.get("is_current_subtask_target"):
+            label_tokens.append("cur")
+        if subtask_numbers:
+            label_tokens.extend(f"sub{number}" for number in subtask_numbers)
+        if label_tokens:
+            label_text = f"[{'|'.join(label_tokens)}] {box['label']}"
+        else:
+            label_text = box["label"]
         (text_w, text_h), baseline = cv2.getTextSize(
             label_text,
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
+            0.6,
             2,
         )
         text_y = y1 - 8 if y1 - 8 - text_h >= 0 else y1 + text_h + 8
@@ -1487,7 +1512,7 @@ def _draw_target_boxes(frame, boxes, semantic_obs=None):
             label_text,
             (x1 + 6, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
+            0.6,
             (255, 255, 255),
             2,
             cv2.LINE_AA,
@@ -1827,7 +1852,82 @@ def _resolve_current_subtask_explicit_instances(
     return ordered_instances
 
 
-def _build_target_specs_from_explicit_instances(explicit_instances):
+def _annotate_explicit_instances_with_subtask_memberships(
+    explicit_instances,
+    explicit_lookup,
+    instruction_subtasks,
+    target_instance_key=None,
+):
+    membership_map = {
+        item.get("instance_key"): []
+        for item in explicit_instances
+        if item.get("instance_key")
+    }
+
+    for subtask_state in instruction_subtasks or []:
+        resolved_instances = _resolve_current_subtask_explicit_instances(
+            subtask_state,
+            explicit_instances,
+            explicit_lookup,
+            target_instance_key=target_instance_key,
+        )
+        membership_record = {
+            "subtask_index": int(subtask_state.get("subtask_index", 0)),
+            "subtask_number": int(subtask_state.get("subtask_index", 0)) + 1,
+            "instruction": subtask_state.get("instruction"),
+            "step_index_start": (
+                int(subtask_state["step_index_start"])
+                if subtask_state.get("step_index_start") is not None
+                else None
+            ),
+            "step_index_end": (
+                int(subtask_state["step_index_end"])
+                if subtask_state.get("step_index_end") is not None
+                else None
+            ),
+            "source_start": (
+                int(subtask_state["source_start"])
+                if subtask_state.get("source_start") is not None
+                else None
+            ),
+            "source_end": (
+                int(subtask_state["source_end"])
+                if subtask_state.get("source_end") is not None
+                else None
+            ),
+        }
+        for explicit_instance in resolved_instances:
+            instance_key = explicit_instance.get("instance_key")
+            if not instance_key or instance_key not in membership_map:
+                continue
+            if any(
+                item.get("subtask_index") == membership_record["subtask_index"]
+                for item in membership_map[instance_key]
+            ):
+                continue
+            membership_map[instance_key].append(dict(membership_record))
+
+    for explicit_instance in explicit_instances:
+        instance_key = explicit_instance.get("instance_key")
+        memberships = sorted(
+            membership_map.get(instance_key, []),
+            key=lambda item: item.get("subtask_index", 10**9),
+        )
+        explicit_instance["subtask_memberships"] = memberships
+        explicit_instance["subtask_indices"] = [
+            int(item["subtask_index"]) for item in memberships
+        ]
+        explicit_instance["subtask_numbers"] = [
+            int(item["subtask_number"]) for item in memberships
+        ]
+    return membership_map
+
+
+def _build_target_specs_from_explicit_instances(
+    explicit_instances,
+    current_subtask_instance_keys=None,
+):
+    highlighted_keys = set(current_subtask_instance_keys or [])
     target_specs = []
     for explicit_instance in explicit_instances:
         semantic_id = _coerce_semantic_id(explicit_instance.get("semantic_id"))
@@ -1841,11 +1941,21 @@ def _build_target_specs_from_explicit_instances(explicit_instances):
         target_specs.append(
             {
                 "label": label,
+                "object_id": explicit_instance.get("object_id"),
+                "category": explicit_instance.get("category"),
+                "subtask_numbers": [
+                    int(item)
+                    for item in (explicit_instance.get("subtask_numbers") or [])
+                    if item is not None
+                ],
                 "scope": "explicit_instance",
                 "semantic_ids": [semantic_id],
                 "semantic_labels": {
                     semantic_id: label,
                 },
+                "is_current_subtask_target": (
+                    explicit_instance.get("instance_key") in highlighted_keys
+                ),
             }
         )
     return target_specs
@@ -1865,6 +1975,25 @@ def _build_step_task_frame_target_state(
         "object_id": target_instance_record.get("object_id"),
         "semantic_id": target_instance_record.get("semantic_id"),
         "category": target_instance_record.get("category"),
+        "subtask_indices": [
+            int(item) for item in (target_instance_record.get("subtask_indices") or [])
+        ],
+        "subtask_numbers": [
+            int(item) for item in (target_instance_record.get("subtask_numbers") or [])
+        ],
+        "subtask_memberships": [
+            {
+                "subtask_index": int(item["subtask_index"]),
+                "subtask_number": int(item["subtask_number"]),
+                "instruction": item.get("instruction"),
+                "step_index_start": item.get("step_index_start"),
+                "step_index_end": item.get("step_index_end"),
+                "source_start": item.get("source_start"),
+                "source_end": item.get("source_end"),
+            }
+            for item in (target_instance_record.get("subtask_memberships") or [])
+            if isinstance(item, dict) and item.get("subtask_index") is not None
+        ],
         "visible_in_current_view": False,
         "visible_pixel_count": 0,
         "bbox_xyxy": None,
@@ -1922,11 +2051,21 @@ def _build_step_task_frame_target_states(
     return target_states
 
 
+def _filter_visible_step_task_frame_target_states(target_states):
+    return [
+        target_state
+        for target_state in target_states or []
+        if target_state.get("visible_in_current_view")
+    ]
+
+
 def _build_step_task_frame_record(
     entry,
     frame_index,
     subtask_state,
     target_object_states,
+    current_subtask_target_object_states=None,
+    all_subtask_target_object_states=None,
     frame_asset_record=None,
 ):
     frame_record = {
@@ -1940,6 +2079,18 @@ def _build_step_task_frame_record(
         "agent_yaw": float(entry["yaw"]),
         "target_object_state": target_object_states[0] if target_object_states else None,
         "target_object_states": target_object_states,
+        "current_subtask_target_object_state": (
+            current_subtask_target_object_states[0]
+            if current_subtask_target_object_states
+            else None
+        ),
+        "current_subtask_target_object_states": current_subtask_target_object_states or [],
+        "all_subtask_target_object_state": (
+            all_subtask_target_object_states[0]
+            if all_subtask_target_object_states
+            else None
+        ),
+        "all_subtask_target_object_states": all_subtask_target_object_states or [],
         "rgb_path": frame_asset_record.get("rgb_path") if frame_asset_record else None,
         "depth_vis_path": frame_asset_record.get("depth_vis_path") if frame_asset_record else None,
         "depth_raw_path": frame_asset_record.get("depth_raw_path") if frame_asset_record else None,
@@ -1972,7 +2123,9 @@ def _build_step_task_frame_record(
 
 
 def _build_step_task_frame_overlay_lines(frame_record):
-    target_states = list(frame_record.get("target_object_states") or [])
+    target_states = list(frame_record.get("current_subtask_target_object_states") or [])
+    if not target_states:
+        target_states = list(frame_record.get("target_object_states") or [])
     lines = [
         "Frame debug",
         f"Next action: {frame_record.get('next_action') or 'n/a'}",
@@ -2157,7 +2310,9 @@ def _write_step_task_frame_info(
             "instruction_anchor_instances": raw_task_config.get("instruction_anchor_instances") or [],
             "instruction_subtask_alignment_json": raw_task_config.get("instruction_subtask_alignment_json"),
             "source_compressed_steps_json": raw_task_config.get("source_compressed_steps_json"),
-            "frame_target_source": "current_subtask_explicit_objects",
+            "frame_target_source": "visible_step_task_explicit_objects",
+            "current_subtask_target_source": "current_subtask_explicit_objects",
+            "all_subtask_target_source": "all_step_task_explicit_objects",
             "frame_assets_dir": _to_relative_output_path(
                 frame_asset_dirs["root"],
                 task_json_path,
@@ -2288,6 +2443,12 @@ def export_video(
                 simulator,
                 replay_context,
             )
+            _annotate_explicit_instances_with_subtask_memberships(
+                explicit_step_task_instances,
+                explicit_step_task_lookup,
+                replay_context.get("instruction_subtasks", []),
+                target_instance_key=target_instance_key,
+            )
         for frame_index, entry in enumerate(timeline):
             frame, semantic_obs, depth_obs = _capture_frame(
                 simulator,
@@ -2309,8 +2470,14 @@ def export_video(
                     target_instance_key=target_instance_key,
                 )
             if replay_context["kind"] == "step_task":
+                current_subtask_instance_keys = [
+                    item.get("instance_key")
+                    for item in current_target_instances
+                    if item.get("instance_key")
+                ]
                 target_spec = _build_target_specs_from_explicit_instances(
-                    current_target_instances,
+                    explicit_step_task_instances,
+                    current_subtask_instance_keys=current_subtask_instance_keys,
                 ) if target_boxes else None
             else:
                 target_spec = trial_target_lookup.get(entry["trial_index"])
@@ -2324,6 +2491,15 @@ def export_video(
                     depth_obs,
                     frame_asset_dirs,
                 )
+                all_subtask_target_states = _build_step_task_frame_target_states(
+                    explicit_step_task_instances,
+                    semantic_obs,
+                    entry,
+                    simulator.pathfinder,
+                )
+                visible_subtask_target_states = _filter_visible_step_task_frame_target_states(
+                    all_subtask_target_states,
+                )
                 current_target_states = _build_step_task_frame_target_states(
                     current_target_instances,
                     semantic_obs,
@@ -2334,7 +2510,9 @@ def export_video(
                     entry,
                     frame_index,
                     current_subtask,
-                    current_target_states,
+                    visible_subtask_target_states,
+                    current_subtask_target_object_states=current_target_states,
+                    all_subtask_target_object_states=all_subtask_target_states,
                     frame_asset_record=frame_asset_record,
                 )
                 frame_info_records.append(frame_info_record)
