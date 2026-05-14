@@ -132,6 +132,8 @@ LOOP_COUNT=""
 MAX_ATTEMPTS=""
 HAS_LOCAL_RSYNC=0
 SYNC_MODE=""
+SYNC_RETRY_COUNT="${NAVGEN_SYNC_RETRY_COUNT:-5}"
+SYNC_RETRY_SLEEP="${NAVGEN_SYNC_RETRY_SLEEP:-10}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -395,6 +397,16 @@ if ! [[ "$PROGRESS_INTERVAL" =~ ^[0-9]+$ ]] || [[ "$PROGRESS_INTERVAL" -lt 1 ]];
   exit 1
 fi
 
+if ! [[ "$SYNC_RETRY_COUNT" =~ ^[0-9]+$ ]] || [[ "$SYNC_RETRY_COUNT" -lt 1 ]]; then
+  echo "NAVGEN_SYNC_RETRY_COUNT must be a positive integer, got: $SYNC_RETRY_COUNT" >&2
+  exit 1
+fi
+
+if ! [[ "$SYNC_RETRY_SLEEP" =~ ^[0-9]+$ ]] || [[ "$SYNC_RETRY_SLEEP" -lt 0 ]]; then
+  echo "NAVGEN_SYNC_RETRY_SLEEP must be a non-negative integer, got: $SYNC_RETRY_SLEEP" >&2
+  exit 1
+fi
+
 if [[ ! -x "$CONDA_EXE" ]]; then
   echo "conda executable not found at $CONDA_EXE" >&2
   exit 1
@@ -433,22 +445,99 @@ mkdir -p \
   "$LOCAL_RUN_DIR/$SUCCESS_BUCKET_NAME" \
   "$LOCAL_RUN_DIR/$FAILURE_BUCKET_NAME"
 
+run_with_retry() {
+  local description="$1"
+  shift
+
+  local attempt=1
+  local status=0
+
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    status=$?
+
+    if [[ "$attempt" -ge "$SYNC_RETRY_COUNT" ]]; then
+      echo "[ERROR] ${description} failed after ${attempt} attempts (exit ${status})." >&2
+      return "$status"
+    fi
+
+    echo "[WARN] ${description} failed on attempt ${attempt}/${SYNC_RETRY_COUNT} (exit ${status}); retrying in ${SYNC_RETRY_SLEEP}s..." >&2
+    sleep "$SYNC_RETRY_SLEEP"
+    attempt=$((attempt + 1))
+  done
+}
+
+run_with_retry_capture() {
+  local __result_var="$1"
+  local description="$2"
+  shift 2
+
+  local attempt=1
+  local status=0
+  local output=""
+
+  while true; do
+    if output="$("$@")"; then
+      printf -v "$__result_var" '%s' "$output"
+      return 0
+    fi
+    status=$?
+
+    if [[ "$attempt" -ge "$SYNC_RETRY_COUNT" ]]; then
+      echo "[ERROR] ${description} failed after ${attempt} attempts (exit ${status})." >&2
+      return "$status"
+    fi
+
+    echo "[WARN] ${description} failed on attempt ${attempt}/${SYNC_RETRY_COUNT} (exit ${status}); retrying in ${SYNC_RETRY_SLEEP}s..." >&2
+    sleep "$SYNC_RETRY_SLEEP"
+    attempt=$((attempt + 1))
+  done
+}
+
+sync_file_tar_once() {
+  local src_file="$1"
+  local remote_file="$2"
+  ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "cat > '$remote_file'" < "$src_file"
+}
+
+sync_dir_contents_tar_once() {
+  local src_dir="$1"
+  local remote_dir="$2"
+  tar -C "$src_dir" -cf - . | ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "tar -xf - -C '$remote_dir'"
+}
+
 ensure_remote_layout() {
-  ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
+  run_with_retry "ensure remote layout" \
+    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
     "mkdir -p '$REMOTE_RUN_DIR/$SUCCESS_BUCKET_NAME' '$REMOTE_RUN_DIR/$FAILURE_BUCKET_NAME'"
 }
 
 detect_sync_mode() {
+  local remote_has_rsync=""
+  local remote_has_tar=""
+
   if [[ -n "$SYNC_MODE" ]]; then
     return
   fi
 
-  if [[ "$HAS_LOCAL_RSYNC" -eq 1 ]] && ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "command -v rsync >/dev/null 2>&1"; then
+  if [[ "$HAS_LOCAL_RSYNC" -eq 1 ]]; then
+    run_with_retry_capture remote_has_rsync "check remote rsync availability" \
+      ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
+      "if command -v rsync >/dev/null 2>&1; then printf yes; else printf no; fi"
+  fi
+
+  if [[ "$HAS_LOCAL_RSYNC" -eq 1 ]] && [[ "$remote_has_rsync" == "yes" ]]; then
     SYNC_MODE="rsync"
     return
   fi
 
-  if ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "command -v tar >/dev/null 2>&1"; then
+  run_with_retry_capture remote_has_tar "check remote tar availability" \
+    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
+    "if command -v tar >/dev/null 2>&1; then printf yes; else printf no; fi"
+
+  if [[ "$remote_has_tar" == "yes" ]]; then
     SYNC_MODE="tar"
     return
   fi
@@ -463,13 +552,15 @@ sync_file() {
 
   case "$SYNC_MODE" in
     rsync)
-      rsync -az \
+      run_with_retry "sync file $(basename "$src_file") via rsync" \
+        rsync -az \
         -e "ssh -p ${REMOTE_PORT}" \
         "$src_file" \
         "${REMOTE_SPEC}:${remote_file}"
       ;;
     tar)
-      ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "cat > '$remote_file'" < "$src_file"
+      run_with_retry "sync file $(basename "$src_file") via ssh" \
+        sync_file_tar_once "$src_file" "$remote_file"
       ;;
     *)
       echo "[ERROR] Unsupported sync mode: $SYNC_MODE" >&2
@@ -484,13 +575,15 @@ sync_dir_contents() {
 
   case "$SYNC_MODE" in
     rsync)
-      rsync -az --partial --info=progress2 \
+      run_with_retry "sync directory $(basename "$src_dir") via rsync" \
+        rsync -az --partial --info=progress2 \
         -e "ssh -p ${REMOTE_PORT}" \
         "${src_dir}/" \
         "${REMOTE_SPEC}:${remote_dir}/"
       ;;
     tar)
-      tar -C "$src_dir" -cf - . | ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "tar -xf - -C '$remote_dir'"
+      run_with_retry "sync directory $(basename "$src_dir") via tar" \
+        sync_dir_contents_tar_once "$src_dir" "$remote_dir"
       ;;
     *)
       echo "[ERROR] Unsupported sync mode: $SYNC_MODE" >&2
@@ -541,12 +634,19 @@ count_recorded_successes() {
 }
 
 fetch_remote_summary_if_needed() {
+  local remote_summary_exists=""
+
   if [[ -f "$SUMMARY_FILE" ]]; then
     return
   fi
 
-  if ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "[ -f '$REMOTE_RUN_DIR/batch_summary.tsv' ]"; then
-    scp -P "$REMOTE_PORT" \
+  run_with_retry_capture remote_summary_exists "check remote batch summary existence" \
+    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" \
+    "if [ -f '$REMOTE_RUN_DIR/batch_summary.tsv' ]; then printf yes; else printf no; fi"
+
+  if [[ "$remote_summary_exists" == "yes" ]]; then
+    run_with_retry "fetch remote batch summary" \
+      scp -P "$REMOTE_PORT" \
       "${REMOTE_SPEC}:${REMOTE_RUN_DIR}/batch_summary.tsv" \
       "$SUMMARY_FILE"
   fi
@@ -596,7 +696,8 @@ sync_item() {
 
   ensure_remote_layout
   if [[ -d "$item_dir" ]] && [[ -n "$(find "$item_dir" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
-    ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$remote_item_dir'"
+    run_with_retry "create remote item dir ${item_id}" \
+      ssh -p "$REMOTE_PORT" "$REMOTE_SPEC" "mkdir -p '$remote_item_dir'"
     sync_dir_contents "$item_dir" "$remote_item_dir"
   fi
 
@@ -1071,6 +1172,7 @@ fi
 echo "[INFO] Keep local item   : $KEEP_LOCAL_ITEM"
 echo "[INFO] Forwarded args    : ${FORWARDED_ARGS[*]:-(none)}"
 echo "[INFO] Resume mode       : $RESUME"
+echo "[INFO] Sync retries      : count=${SYNC_RETRY_COUNT}, sleep=${SYNC_RETRY_SLEEP}s"
 
 detect_sync_mode
 echo "[INFO] Remote sync mode  : $SYNC_MODE"
