@@ -85,6 +85,52 @@
 
 因此暂时保留，不纳入这次清理。
 
+### 6. `cot_ann/navgen_batch_cot_worker.py`
+
+单个远程 `success/item_xxxx` 的批处理脚本。
+
+作用：
+
+- 检查远程 item 是否已经稳定落盘
+- 拉取整个 `item_xxxx/step_task/` 到本地临时目录
+- 遍历 item 下所有 `*.frame_info.json`
+- 为每个 task 生成同名 `*.cot.jsonl`
+- 将 `*.cot.jsonl` 回传到远程同一个 `step_task/` 目录
+- 成功后删除本地临时目录
+
+适合：
+
+- 手工补跑某个 item
+- 被 watcher 调用做真正执行
+
+### 7. `cot_ann/navgen_batch_cot_watcher.py`
+
+后台 watcher，监听远程 `batch_summary.tsv`。
+
+作用：
+
+- 周期性读取远程 `batch_summary.tsv`
+- 发现新追加的 `status=ok` item
+- 先做远程完整性与稳定性检查
+- 再调用 `navgen_batch_cot_worker.py` 处理该 item
+- 用本地 sqlite 记录状态，支持断点续跑
+
+适合：
+
+- 长时间后台挂起，边生成 item 边自动补 CoT
+
+### 8. `cot_ann/run_navgen_batch_cot_watcher.sh`
+
+批量 watcher 的启动包装脚本。
+
+作用：
+
+- 预置远程根目录、summary 路径、模型、状态库路径、本地 stage 路径
+- 检查 API Key
+- 直接启动 `navgen_batch_cot_watcher.py`
+
+推荐在实际生产里优先从这个脚本启动。
+
 ## 当前保留的 debug 文件
 
 ### 1. `debug/navgen_remote_stage/20260514_192821/`
@@ -184,6 +230,25 @@ python3 cot_ann/navgen_cot_synthesizer.py \
 ```bash
 python3 cot_ann/jsonl_to_frame_markdown.py \
   --input debug/<new_output>.jsonl
+```
+
+### 持续监听远程 batch_summary.tsv 并自动回传 CoT
+
+```bash
+bash cot_ann/run_navgen_batch_cot_watcher.sh
+```
+
+如果想先试运行一轮、不持续挂起：
+
+```bash
+python3 cot_ann/navgen_batch_cot_watcher.py --once
+```
+
+如果想手工补跑某个远程 item：
+
+```bash
+python3 cot_ann/navgen_batch_cot_worker.py \
+  --remote-item-dir "<remote_root>/success/item_0008"
 ```
 
 ## 建议
