@@ -17,7 +17,7 @@ VLN CoT 数据合成脚本
   使用阿里云百炼成品 API（示例）：
   python3 scripts/cot_annotation/vln_data_synthesizer.py \\
       --api-provider dashscope \\
-      --model qwen3.5-plus \\
+      --model qwen3.6-plus \\
       --thinking-mode on
 
   可选参数：
@@ -167,9 +167,9 @@ VALID_ACTIONS = set(ACTION_MAP.values())
 MAX_STEP_CHARS = 400
 MAX_TOTAL_CHARS = 1600
 LOCAL_API_BASE_URL = "http://localhost:8000/v1"
-LOCAL_MODEL_NAME = "/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8"
+LOCAL_MODEL_NAME = "/mnt/data-cpfs/gengshuang/models/Qwen3.6-397B-A17B-FP8"
 DASHSCOPE_API_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-DASHSCOPE_MODEL_NAME = "qwen3.5-plus"
+DASHSCOPE_MODEL_NAME = "qwen3.6-plus"
 API_PROVIDER_CHOICES = ("local", "dashscope")
 THINKING_MODE_CHOICES = ("auto", "on", "off")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -313,7 +313,7 @@ class VLNDataSynthesizer:
     def __init__(
         self,
         max_retries: int = 3,
-        api_provider: str = "local",
+        api_provider: str = "dashscope",
         api_base_url: Optional[str] = None,
         model_name: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -637,6 +637,25 @@ class VLNDataSynthesizer:
         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
             text = text[start_idx:end_idx + 1]
         return text
+
+    def _build_retry_feedback_message(
+        self,
+        format_error: Optional[str],
+        next_action: str,
+    ) -> str:
+        """构造校验失败后的重试提示。子类可覆盖以加强约束。"""
+        return (
+            "Your previous JSON failed validation. "
+            f"Validation error: {format_error}. "
+            "Return one corrected compact JSON object with exactly these keys: "
+            "step1_task_progress, step2_spatial_perception, "
+            "step3_decision_logic, step4_memory_update. "
+            "Do not include any extra keys. "
+            "Do not repeat prompt instructions or placeholder text. "
+            "Step 2 must mention every visible annotated object with its bbox, or clearly say no annotated object is visible. "
+            f"Step 3 must clearly justify the action '{next_action}' using the spatial evidence from step2. "
+            "Step 4 must update the current active task progress together with the chosen action."
+        )
 
     def _parse_structured_response(
         self,
@@ -1031,17 +1050,9 @@ class VLNDataSynthesizer:
                         {"role": "assistant", "content": assistant_feedback[:4000]},
                         {
                             "role": "user",
-                            "content": (
-                                "Your previous JSON failed validation. "
-                                f"Validation error: {format_error}. "
-                                "Return one corrected compact JSON object with exactly these keys: "
-                                "step1_task_progress, step2_spatial_perception, "
-                                "step3_decision_logic, step4_memory_update. "
-                                "Do not include any extra keys. "
-                                "Do not repeat prompt instructions or placeholder text. "
-                                f"Step 2 must mention every visible annotated object with its bbox, or clearly say no annotated object is visible. "
-                                f"Step 3 must clearly justify the action '{next_action}' using the spatial evidence from step2. "
-                                "Step 4 must update the current active task progress together with the chosen action."
+                            "content": self._build_retry_feedback_message(
+                                format_error=format_error,
+                                next_action=next_action,
                             ),
                         },
                     ]
@@ -1320,7 +1331,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--api-provider",
         choices=API_PROVIDER_CHOICES,
-        default="local",
+        default="dashscope",
         help="API 提供方类型：local=自部署 OpenAI 兼容接口，dashscope=阿里云百炼兼容接口",
     )
     parser.add_argument(
@@ -1331,7 +1342,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         default=None,
-        help="模型名称；不传时 local 默认为自部署模型名，dashscope 默认为 qwen3.5-plus",
+        help="模型名称；不传时 local 默认为自部署模型名，dashscope 默认为 qwen3.6-plus",
     )
     parser.add_argument(
         "--api-key",

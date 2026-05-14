@@ -14,3 +14,5 @@ nav_gen/tmp_ram_verify_item_0002/
 nav_gen/_tmp_step_export/
 nav_gen/_tmp_step_task_subtask_target_fix/
 nav_gen/_tmp_frame_asset_check/
+cot_ann/__pycache__
+debug/

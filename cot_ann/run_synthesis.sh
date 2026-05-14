@@ -5,7 +5,7 @@
 # 使用方法：
 #   bash scripts/cot_annotation/run_synthesis.sh
 #   bash scripts/cot_annotation/run_synthesis.sh --episode-ids 1 6 7
-#   API_PROVIDER=dashscope MODEL_ID=qwen3.5-plus THINKING_MODE=on \
+#   API_PROVIDER=dashscope MODEL_ID=qwen3.6-plus THINKING_MODE=on \
 #       bash scripts/cot_annotation/run_synthesis.sh --episode-ids 1
 # =============================================================================
 set -euo pipefail
@@ -19,7 +19,7 @@ VIDEO_DIR="/home/gs/my_test/vln_dataset/vln_ce_video"
 DEBUG_ROOT="${PROJECT_ROOT}/debug"
 
 # ---------------- VLM API 配置 ----------------
-API_PROVIDER="${API_PROVIDER:-local}"
+API_PROVIDER="${API_PROVIDER:-dashscope}"
 API_BASE_URL="${API_BASE_URL:-}"
 MODEL_ID="${MODEL_ID:-}"
 MAX_RETRIES="${MAX_RETRIES:-3}"
@@ -29,9 +29,9 @@ API_KEY_ENV="${API_KEY_ENV:-DASHSCOPE_API_KEY}"
 API_KEY="${API_KEY:-}"
 
 LOCAL_API_BASE_URL="http://localhost:8000/v1"
-LOCAL_MODEL_ID="/mnt/data-cpfs/gengshuang/models/Qwen3.5-397B-A17B-FP8"
+LOCAL_MODEL_ID="/mnt/data-cpfs/gengshuang/models/Qwen3.6-397B-A17B-FP8"
 DASHSCOPE_API_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
-DASHSCOPE_MODEL_ID="qwen3.5-plus"
+DASHSCOPE_MODEL_ID="qwen3.6-plus"
 
 # ---------------- 输出命名配置 ----------------
 RUN_TIMESTAMP="${RUN_TIMESTAMP:-$(date '+%Y%m%d_%H%M%S')}"
