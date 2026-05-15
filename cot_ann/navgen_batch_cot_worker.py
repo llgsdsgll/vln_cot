@@ -18,6 +18,7 @@ import logging
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -42,6 +43,24 @@ DEFAULT_REMOTE_ROOT = (
 DEFAULT_LOCAL_STAGE_ROOT = PROJECT_ROOT / "debug" / "navgen_batch_live_stage"
 DEFAULT_OUTPUT_SUFFIX = ".cot.jsonl"
 DEFAULT_STABLE_SECONDS = 90.0
+DEFAULT_NETWORK_COMMAND_RETRIES = 6
+DEFAULT_NETWORK_RETRY_DELAY_SECONDS = 5.0
+DEFAULT_SSH_CONNECT_TIMEOUT_SECONDS = 20
+DEFAULT_SSH_SERVER_ALIVE_INTERVAL_SECONDS = 30
+DEFAULT_SSH_SERVER_ALIVE_COUNT_MAX = 6
+
+NETWORK_ERROR_MARKERS = (
+    "connection closed by",
+    "connection reset by peer",
+    "broken pipe",
+    "connection timed out",
+    "operation timed out",
+    "timed out",
+    "network is unreachable",
+    "connection refused",
+    "kex_exchange_identification",
+    "unexpected eof",
+)
 
 REMOTE_INSPECT_SCRIPT = r"""
 import json
@@ -176,6 +195,11 @@ class SSHConfig:
     host: str
     port: int
     user: str
+    network_command_retries: int = DEFAULT_NETWORK_COMMAND_RETRIES
+    network_retry_delay_seconds: float = DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    connect_timeout_seconds: int = DEFAULT_SSH_CONNECT_TIMEOUT_SECONDS
+    server_alive_interval_seconds: int = DEFAULT_SSH_SERVER_ALIVE_INTERVAL_SECONDS
+    server_alive_count_max: int = DEFAULT_SSH_SERVER_ALIVE_COUNT_MAX
 
 
 @dataclass(frozen=True)
@@ -223,8 +247,42 @@ def _ssh_host(config: SSHConfig) -> str:
     return f"{config.user}@{config.host}"
 
 
+def _ssh_options(config: SSHConfig) -> list[str]:
+    return [
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        f"ConnectTimeout={config.connect_timeout_seconds}",
+        "-o",
+        f"ServerAliveInterval={config.server_alive_interval_seconds}",
+        "-o",
+        f"ServerAliveCountMax={config.server_alive_count_max}",
+        "-o",
+        "TCPKeepAlive=yes",
+    ]
+
+
 def _ssh_command(config: SSHConfig, *remote_args: str) -> list[str]:
-    return ["ssh", "-p", str(config.port), _ssh_host(config), *remote_args]
+    return [
+        "ssh",
+        "-p",
+        str(config.port),
+        *_ssh_options(config),
+        _ssh_host(config),
+        *remote_args,
+    ]
+
+
+def _ssh_rsync_shell(config: SSHConfig) -> str:
+    options = " ".join(_ssh_options(config))
+    return f"ssh -p {config.port} {options}"
+
+
+def _is_retryable_network_failure(returncode: int, stdout: str, stderr: str) -> bool:
+    combined = f"{stdout}\n{stderr}".lower()
+    if returncode == 255:
+        return True
+    return any(marker in combined for marker in NETWORK_ERROR_MARKERS)
 
 
 def run_command(
@@ -232,27 +290,71 @@ def run_command(
     *,
     input_text: Optional[str] = None,
     check: bool = True,
+    retries: int = 0,
+    retry_delay_seconds: float = DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
+    retry_on_network_failure: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    LOGGER.debug("Running command: %s", " ".join(cmd))
-    result = subprocess.run(
-        cmd,
-        input=input_text,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if check and result.returncode != 0:
-        raise RuntimeError(
-            f"command failed ({result.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
+    attempt = 0
+    while True:
+        attempt += 1
+        LOGGER.debug("Running command (attempt %d): %s", attempt, " ".join(cmd))
+        result = subprocess.run(
+            cmd,
+            input=input_text,
+            text=True,
+            capture_output=True,
+            check=False,
         )
-    return result
+        if result.returncode == 0 or not check:
+            if result.returncode == 0:
+                return result
+            if not retry_on_network_failure:
+                return result
+            if attempt > retries or not _is_retryable_network_failure(
+                result.returncode,
+                result.stdout,
+                result.stderr,
+            ):
+                return result
+        elif result.returncode == 0:
+            return result
+
+        retryable = retry_on_network_failure and _is_retryable_network_failure(
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
+        if retryable and attempt <= retries:
+            wait_seconds = retry_delay_seconds * (2 ** (attempt - 1))
+            LOGGER.warning(
+                "network command failed (attempt %d/%d), retry after %.1fs: %s | stderr=%s",
+                attempt,
+                retries + 1,
+                wait_seconds,
+                " ".join(cmd),
+                result.stderr.strip(),
+            )
+            time.sleep(wait_seconds)
+            continue
+
+        if check:
+            raise RuntimeError(
+                f"command failed ({result.returncode}): {' '.join(cmd)}\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        return result
 
 
 def run_remote_python(config: SSHConfig, script: str, args: list[str]) -> str:
     cmd = _ssh_command(config, "python3", "-", *args)
-    result = run_command(cmd, input_text=script)
+    result = run_command(
+        cmd,
+        input_text=script,
+        retries=config.network_command_retries,
+        retry_delay_seconds=config.network_retry_delay_seconds,
+        retry_on_network_failure=True,
+    )
     return result.stdout
 
 
@@ -292,10 +394,13 @@ def rsync_step_task_dir(
             "-s",
             "--delete",
             "-e",
-            f"ssh -p {ssh_config.port}",
+            _ssh_rsync_shell(ssh_config),
             remote_source,
             str(local_step_task_dir),
-        ]
+        ],
+        retries=ssh_config.network_command_retries,
+        retry_delay_seconds=ssh_config.network_retry_delay_seconds,
+        retry_on_network_failure=True,
     )
     return local_step_task_dir
 
@@ -312,10 +417,13 @@ def upload_file_to_remote(
             "-a",
             "-s",
             "-e",
-            f"ssh -p {ssh_config.port}",
+            _ssh_rsync_shell(ssh_config),
             str(local_path),
             remote_target,
-        ]
+        ],
+        retries=ssh_config.network_command_retries,
+        retry_delay_seconds=ssh_config.network_retry_delay_seconds,
+        retry_on_network_failure=True,
     )
 
 
@@ -333,6 +441,9 @@ print("1" if ok else "0")
     result = run_command(
         _ssh_command(ssh_config, "python3", "-"),
         input_text=script,
+        retries=ssh_config.network_command_retries,
+        retry_delay_seconds=ssh_config.network_retry_delay_seconds,
+        retry_on_network_failure=True,
     )
     output = result.stdout.strip()
     return output == "1"
@@ -446,26 +557,19 @@ def process_remote_item(
             if not local_step_json.exists():
                 raise FileNotFoundError(f"missing local step json: {local_step_json}")
 
-            if local_output_jsonl.exists() and local_output_jsonl.stat().st_size > 0:
-                LOGGER.info(
-                    "%s | reusing existing local output for task '%s'.",
-                    item_id,
-                    stem,
-                )
-            else:
-                if local_output_jsonl.exists():
-                    local_output_jsonl.unlink()
-                LOGGER.info(
-                    "%s | generating CoT for task '%s'.",
-                    item_id,
-                    stem,
-                )
-                synthesizer.run_frame_info(
-                    frame_info=str(local_frame_info),
-                    step_task_json=str(local_step_json),
-                    output_jsonl=str(local_output_jsonl),
-                    max_frames=config.max_frames,
-                )
+            if local_output_jsonl.exists():
+                local_output_jsonl.unlink()
+            LOGGER.info(
+                "%s | generating CoT for task '%s'.",
+                item_id,
+                stem,
+            )
+            synthesizer.run_frame_info(
+                frame_info=str(local_frame_info),
+                step_task_json=str(local_step_json),
+                output_jsonl=str(local_output_jsonl),
+                max_frames=config.max_frames,
+            )
             if not local_output_jsonl.exists() or local_output_jsonl.stat().st_size == 0:
                 raise RuntimeError(
                     f"generated output missing or empty: {local_output_jsonl}"
@@ -645,6 +749,36 @@ def parse_args() -> argparse.Namespace:
         help="Optional debug limit on the number of step_task files processed in the item.",
     )
     parser.add_argument(
+        "--network-command-retries",
+        type=int,
+        default=DEFAULT_NETWORK_COMMAND_RETRIES,
+        help="Retries for ssh/rsync/network shell commands.",
+    )
+    parser.add_argument(
+        "--network-retry-delay-seconds",
+        type=float,
+        default=DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
+        help="Base retry delay for ssh/rsync/network shell commands.",
+    )
+    parser.add_argument(
+        "--ssh-connect-timeout-seconds",
+        type=int,
+        default=DEFAULT_SSH_CONNECT_TIMEOUT_SECONDS,
+        help="SSH connect timeout in seconds.",
+    )
+    parser.add_argument(
+        "--ssh-server-alive-interval-seconds",
+        type=int,
+        default=DEFAULT_SSH_SERVER_ALIVE_INTERVAL_SECONDS,
+        help="SSH ServerAliveInterval in seconds.",
+    )
+    parser.add_argument(
+        "--ssh-server-alive-count-max",
+        type=int,
+        default=DEFAULT_SSH_SERVER_ALIVE_COUNT_MAX,
+        help="SSH ServerAliveCountMax.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug logging.",
@@ -661,6 +795,11 @@ def main() -> None:
             host=args.remote_host,
             port=args.remote_port,
             user=args.remote_user,
+            network_command_retries=args.network_command_retries,
+            network_retry_delay_seconds=args.network_retry_delay_seconds,
+            connect_timeout_seconds=args.ssh_connect_timeout_seconds,
+            server_alive_interval_seconds=args.ssh_server_alive_interval_seconds,
+            server_alive_count_max=args.ssh_server_alive_count_max,
         ),
         local_stage_root=Path(args.local_stage_root).expanduser().resolve(),
         output_suffix=args.output_suffix,

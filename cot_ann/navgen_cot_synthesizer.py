@@ -363,6 +363,136 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
     """面向 NavGen step_task frame_info 的 CoT 合成器。"""
 
     @staticmethod
+    def _truncate_template_text(text: str, max_chars: int) -> str:
+        text = collapse_whitespace(text)
+        if len(text) <= max_chars:
+            return text
+        if max_chars <= 3:
+            return text[:max_chars]
+        return text[: max_chars - 3].rstrip(" ,;:.") + "..."
+
+    @staticmethod
+    def _template_target_prefix(roles: list[str]) -> str:
+        has_current = "current" in roles
+        has_next = "next" in roles
+        if has_current and has_next:
+            return "Cur/next"
+        if has_current:
+            return "Cur"
+        if has_next:
+            return "Next"
+        return "Obj"
+
+    @staticmethod
+    def _compact_bbox_text(bbox_norm: Any) -> str:
+        if not isinstance(bbox_norm, list) or len(bbox_norm) != 4:
+            return "[]"
+        return "[" + ",".join(str(int(value)) for value in bbox_norm) + "]"
+
+    @staticmethod
+    def _template_position_short(
+        view_position: Optional[str],
+        bbox_norm: Optional[list[int]],
+    ) -> str:
+        normalized = normalize_view_position_token(view_position)
+        if normalized in VIEW_TOKEN_TO_GRID:
+            x, y = VIEW_TOKEN_TO_GRID[normalized]
+            return direction_text_from_grid(x, y)
+        if isinstance(bbox_norm, list) and len(bbox_norm) == 4:
+            xmin, ymin, xmax, ymax = bbox_norm
+            center_x = (xmin + xmax) / 2
+            center_y = (ymin + ymax) / 2
+            grid_x = 0 if center_x < 333 else 1 if center_x < 667 else 2
+            grid_y = 0 if center_y < 333 else 1 if center_y < 667 else 2
+            return direction_text_from_grid(grid_x, grid_y)
+        return "center"
+
+    def _template_direction_from_status(self, status: dict[str, Any]) -> str:
+        direction_hint = collapse_whitespace(str(status.get("direction_hint") or ""))
+        if direction_hint:
+            return direction_hint
+        return "lower"
+
+    def _format_template_focus_status(
+        self,
+        status: dict[str, Any],
+        *,
+        include_distance: bool = True,
+        separator: str = ", ",
+    ) -> str:
+        prefix = self._template_target_prefix(list(status.get("roles") or []))
+        label = collapse_whitespace(str(status.get("label") or "object")) or "object"
+        distance_text = collapse_whitespace(str(status.get("distance_text") or ""))
+        if status.get("visible"):
+            bbox_text = self._compact_bbox_text(status.get("bbox_norm"))
+            position = collapse_whitespace(str(status.get("position_short") or "center"))
+            parts = [f"{prefix} '{label}' {bbox_text}", position]
+            if include_distance and distance_text:
+                parts.append(distance_text)
+            return separator.join(parts) + "."
+
+        direction_text = self._template_direction_from_status(status)
+        parts = [f"{prefix} '{label}' unseen", direction_text]
+        if include_distance and distance_text:
+            parts.append(distance_text)
+        return separator.join(parts) + "."
+
+    def _format_template_focus_status_compact(self, status: dict[str, Any]) -> str:
+        return self._format_template_focus_status(
+            status,
+            include_distance=False,
+            separator=",",
+        )
+
+    def _format_template_focus_status_minimal(self, status: dict[str, Any]) -> str:
+        label = collapse_whitespace(str(status.get("label") or "object")) or "object"
+        if status.get("visible"):
+            bbox_text = self._compact_bbox_text(status.get("bbox_norm"))
+            position = collapse_whitespace(str(status.get("position_short") or "center"))
+            return f"{label} {bbox_text},{position}."
+        direction_text = self._template_direction_from_status(status)
+        return f"{label} unseen,{direction_text}."
+
+    @staticmethod
+    def _template_focus_label_text(
+        labels: list[str],
+        *,
+        fallback_text: str,
+        max_chars: int,
+    ) -> str:
+        cleaned = [collapse_whitespace(label) for label in labels if collapse_whitespace(label)]
+        if not cleaned:
+            return fallback_text
+        first = cleaned[0]
+        if len(cleaned) == 1:
+            return NavGenFrameInfoSynthesizer._truncate_template_text(first, max_chars)
+        remainder = len(cleaned) - 1
+        compact = f"{first} +{remainder}"
+        return NavGenFrameInfoSynthesizer._truncate_template_text(compact, max_chars)
+
+    @staticmethod
+    def _select_template_priority_statuses(
+        statuses: list[dict[str, Any]],
+        max_items: int = 2,
+    ) -> list[dict[str, Any]]:
+        if max_items <= 0:
+            return []
+        selected: list[dict[str, Any]] = []
+        for role in ("current", "next"):
+            for status in statuses:
+                if status in selected:
+                    continue
+                if role in list(status.get("roles") or []):
+                    selected.append(status)
+                    break
+        for status in statuses:
+            if len(selected) >= max_items:
+                break
+            if status not in selected:
+                selected.append(status)
+        return selected[:max_items]
+
+    @staticmethod
     def _normalize_navgen_action(action: str) -> Optional[str]:
         token = collapse_whitespace(action).lower()
         return NAVGEN_ACTION_MAP.get(token)
@@ -838,6 +968,7 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
 
         visible_focus_objects: list[dict[str, Any]] = []
         invisible_focus_targets: list[dict[str, Any]] = []
+        template_focus_statuses: list[dict[str, Any]] = []
         for target in focus_targets:
             current_state = self._find_state_in_frame(frame, target["key"])
             current_distance_text = format_distance_text(
@@ -849,6 +980,7 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
                 )
             state = visible_state_lookup.get(target["key"])
             prompt_object = None
+            direction_hint: Optional[str] = None
             if state is not None:
                 prompt_object = self._state_to_prompt_object(
                     state=state,
@@ -881,6 +1013,22 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
                     likely_direction_hints.append(
                         f"[{self._role_text(target['roles'])}] '{target['category']}' is most likely toward the {direction_hint} of the view"
                     )
+            template_focus_statuses.append(
+                {
+                    "key": target["key"],
+                    "label": target["category"],
+                    "roles": list(target["roles"]),
+                    "visible": prompt_object is not None,
+                    "bbox_norm": prompt_object["bbox_norm"] if prompt_object is not None else None,
+                    "position": prompt_object["position"] if prompt_object is not None else None,
+                    "position_short": self._template_position_short(
+                        current_state.get("view_position_3x3") if current_state else None,
+                        prompt_object["bbox_norm"] if prompt_object is not None else None,
+                    ) if prompt_object is not None else None,
+                    "distance_text": current_distance_text,
+                    "direction_hint": direction_hint,
+                }
+            )
 
         other_visible_objects: list[dict[str, Any]] = []
         if invisible_focus_targets and invisible_targets_without_history:
@@ -938,6 +1086,7 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
             "likely_direction_hints_str": "; ".join(likely_direction_hints)
             if likely_direction_hints else "[]",
             "focus_targets_str": self._format_focus_targets_for_prompt(focus_targets),
+            "template_focus_statuses": template_focus_statuses,
             "validation_context": {
                 "required_visible_labels": tuple(
                     collapse_whitespace(obj["label"]).lower() for obj in visible_focus_objects
@@ -1029,6 +1178,7 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
         next_action: str,
     ) -> FrameGenerationResult:
         """当模型多次返回不合格时，生成 NavGen 专用兜底答案。"""
+        del history_memory
         current_subtask, _ = self._build_current_task_state(
             frame_data=frame_data,
             global_instruction=global_instruction,
@@ -1036,57 +1186,177 @@ class NavGenFrameInfoSynthesizer(VLNDataSynthesizer):
             completed_index=completed_index,
         )
         navgen_context = frame_data["navgen_context"]
-        action_phrase = self._action_phrase(next_action)
-        history_memory_input = self._format_history_memory_input(history_memory)
         total_steps = max(1, len(global_subtasks))
         completed_count = max(0, min(completed_index, total_steps))
         current_step_number = max(1, min(completed_index + 1, total_steps))
-        step1 = (
-            f"Using the previous memory anchor '{history_memory_input}', the agent has completed "
-            f"{completed_count} of {total_steps} sub-tasks and is now on step {current_step_number}: "
-            f"'{current_subtask}'. The step to execute right now is this current sub-task."
+        short_subtask = self._truncate_template_text(current_subtask, 72)
+        template_focus_statuses = navgen_context.get("template_focus_statuses", [])
+        current_focus_labels = [
+            str(status["label"])
+            for status in template_focus_statuses
+            if "current" in status.get("roles", [])
+        ]
+        next_focus_labels = [
+            str(status["label"])
+            for status in template_focus_statuses
+            if "next" in status.get("roles", [])
+        ]
+        current_focus_text = self._template_focus_label_text(
+            current_focus_labels,
+            fallback_text="current target",
+            max_chars=40,
+        )
+        next_focus_text = self._template_focus_label_text(
+            next_focus_labels,
+            fallback_text="next target",
+            max_chars=40,
         )
 
-        if navgen_context["visible_focus_objects"]:
-            step2 = (
-                "The visible focus targets for the current and next sub-tasks are "
-                f"{navgen_context['visible_focus_targets_str']}. "
-                f"Current distance estimates: {navgen_context['focus_target_distance_estimates_str']}."
-            )
-        elif navgen_context["history_hints"]:
-            step2 = (
-                "The current and next focus targets are not visible in this frame. "
-                f"{' '.join(navgen_context['recent_focus_traces'])} "
-                f"{' '.join(navgen_context['history_hints'])} "
-                f"Likely directions: {navgen_context['likely_direction_hints_str']}."
-            )
+        step1_candidates = [
+            f"Done {completed_count}/{total_steps}. Now step {current_step_number}: '{short_subtask}'.",
+            f"Done {completed_count}/{total_steps}. Now on step {current_step_number}.",
+        ]
+        if template_focus_statuses:
+            step2_candidates = [
+                " ".join(
+                    self._format_template_focus_status(status)
+                    for status in template_focus_statuses
+                ),
+                " ".join(
+                    self._format_template_focus_status(status, include_distance=False)
+                    for status in template_focus_statuses
+                ),
+                "; ".join(
+                    self._format_template_focus_status_compact(status).rstrip(".")
+                    for status in template_focus_statuses
+                ) + ".",
+                "; ".join(
+                    self._format_template_focus_status_minimal(status).rstrip(".")
+                    for status in template_focus_statuses
+                ) + ".",
+            ]
         else:
-            step2 = (
-                "The current and next focus targets are not visible in this frame, "
-                "so their likely direction must be inferred from the recent action trend."
+            step2_candidates = [
+                "Current/next targets unseen, likely lower.",
+                "Targets unseen, likely lower.",
+            ]
+        step3_candidates = [
+            (
+                f"The action '{next_action}' is correct because it keeps the agent aligned with "
+                f"{current_focus_text}. It also keeps {next_focus_text} reachable."
+            ),
+            (
+                f"The action '{next_action}' is correct because it follows the current target layout. "
+                "It also preserves the next target cue."
+            ),
+            f"The action '{next_action}' is correct because it matches the current target layout.",
+        ]
+        step4_candidates = [
+            f"Step {current_step_number} ongoing; action {next_action.lower()}.",
+            f"On step {current_step_number}; action {next_action.lower()}.",
+        ]
+
+        validation_context = {
+            **frame_data.get("navgen_validation_context", {}),
+            "action_mentions": self._action_mentions(next_action),
+        }
+        last_error: Optional[ValidationError] = None
+        structured_trace: Optional[NavGenStructuredTeacherTrace] = None
+        for step1 in step1_candidates:
+            if structured_trace is not None:
+                break
+            for step2 in step2_candidates:
+                if len(collapse_whitespace(step2)) > MAX_STEP_CHARS:
+                    continue
+                for step3 in step3_candidates:
+                    for step4 in step4_candidates:
+                        try:
+                            structured_trace = NavGenStructuredTeacherTrace.model_validate(
+                                {
+                                    "step1_task_progress": step1,
+                                    "step2_spatial_perception": step2,
+                                    "step3_decision_logic": step3,
+                                    "step4_memory_update": step4,
+                                },
+                                context=validation_context,
+                            )
+                            break
+                        except ValidationError as exc:
+                            last_error = exc
+                    if structured_trace is not None:
+                        break
+                if structured_trace is not None:
+                    break
+
+        if structured_trace is None:
+            priority_statuses = self._select_template_priority_statuses(
+                template_focus_statuses,
+                max_items=2,
             )
+            relaxed_visible_statuses = [
+                status for status in priority_statuses if status.get("visible")
+            ]
+            relaxed_context = {
+                **validation_context,
+                "required_visible_labels": tuple(
+                    collapse_whitespace(str(status.get("label") or "")).lower()
+                    for status in relaxed_visible_statuses
+                ),
+                "required_visible_bbox_texts": tuple(
+                    str(status.get("bbox_norm") or [])
+                    for status in relaxed_visible_statuses
+                ),
+            }
+            relaxed_step2_candidates = []
+            if priority_statuses:
+                relaxed_step2_candidates.extend(
+                    [
+                        " ".join(
+                            self._format_template_focus_status(status, include_distance=False)
+                            for status in priority_statuses
+                        ),
+                        "; ".join(
+                            self._format_template_focus_status_minimal(status).rstrip(".")
+                            for status in priority_statuses
+                        ) + ".",
+                    ]
+                )
+            else:
+                relaxed_step2_candidates.append("Targets unseen, likely lower.")
 
-        step3 = (
-            f"The action '{next_action}' is correct because the current target has priority and this move keeps the agent aligned with '{current_subtask}'. "
-            f"It also preserves progress toward the next target using the spatial or historical clue from step2."
-        )
-        step4 = (
-            f"The agent remains on step {current_step_number}: '{current_subtask}', with action "
-            f"{action_phrase} executed in this frame."
-        )
+            for step1 in step1_candidates:
+                if structured_trace is not None:
+                    break
+                for step2 in relaxed_step2_candidates:
+                    if len(collapse_whitespace(step2)) > MAX_STEP_CHARS:
+                        continue
+                    for step3 in step3_candidates:
+                        for step4 in step4_candidates:
+                            try:
+                                structured_trace = NavGenStructuredTeacherTrace.model_validate(
+                                    {
+                                        "step1_task_progress": step1,
+                                        "step2_spatial_perception": step2,
+                                        "step3_decision_logic": step3,
+                                        "step4_memory_update": step4,
+                                    },
+                                    context=relaxed_context,
+                                )
+                                logger.warning(
+                                    "模板兜底已退化为最小 focus 版本，以避免超长输出导致丢帧。"
+                                )
+                                break
+                            except ValidationError as exc:
+                                last_error = exc
+                        if structured_trace is not None:
+                            break
+                    if structured_trace is not None:
+                        break
 
-        structured_trace = NavGenStructuredTeacherTrace.model_validate(
-            {
-                "step1_task_progress": step1,
-                "step2_spatial_perception": step2,
-                "step3_decision_logic": step3,
-                "step4_memory_update": step4,
-            },
-            context={
-                **frame_data.get("navgen_validation_context", {}),
-                "action_mentions": self._action_mentions(next_action),
-            },
-        )
+        if structured_trace is None:
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("template fallback could not build a valid NavGen trace")
         return self._result_from_structured_trace(
             structured_trace=structured_trace,
             frame_data=frame_data,

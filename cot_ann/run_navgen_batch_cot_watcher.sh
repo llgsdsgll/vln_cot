@@ -17,7 +17,14 @@ LOCAL_STAGE_ROOT="${LOCAL_STAGE_ROOT:-${DEBUG_ROOT}/navgen_batch_live_stage}"
 POLL_INTERVAL="${POLL_INTERVAL:-120}"
 STABLE_SECONDS="${STABLE_SECONDS:-90}"
 MAX_ITEM_ATTEMPTS="${MAX_ITEM_ATTEMPTS:-20}"
-MAX_ITEMS_PER_CYCLE="${MAX_ITEMS_PER_CYCLE:-1}"
+MAX_ITEMS_PER_CYCLE="${MAX_ITEMS_PER_CYCLE:-5}"
+MAX_CONCURRENT_WORKERS="${MAX_CONCURRENT_WORKERS:-5}"
+STALE_PROCESSING_SECONDS="${STALE_PROCESSING_SECONDS:-1800}"
+NETWORK_COMMAND_RETRIES="${NETWORK_COMMAND_RETRIES:-6}"
+NETWORK_RETRY_DELAY_SECONDS="${NETWORK_RETRY_DELAY_SECONDS:-5}"
+SSH_CONNECT_TIMEOUT_SECONDS="${SSH_CONNECT_TIMEOUT_SECONDS:-20}"
+SSH_SERVER_ALIVE_INTERVAL_SECONDS="${SSH_SERVER_ALIVE_INTERVAL_SECONDS:-30}"
+SSH_SERVER_ALIVE_COUNT_MAX="${SSH_SERVER_ALIVE_COUNT_MAX:-6}"
 
 API_PROVIDER="${API_PROVIDER:-dashscope}"
 API_BASE_URL="${API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
@@ -52,6 +59,9 @@ echo "Model       : ${MODEL_ID}"
 echo "Poll(sec)   : ${POLL_INTERVAL}"
 echo "Stable(sec) : ${STABLE_SECONDS}"
 echo "Retry/item  : ${MAX_ITEM_ATTEMPTS}"
+echo "Workers     : ${MAX_CONCURRENT_WORKERS}"
+echo "Stale(sec)  : ${STALE_PROCESSING_SECONDS}"
+echo "SSH Retries : ${NETWORK_COMMAND_RETRIES}"
 echo ""
 
 CMD=(
@@ -67,6 +77,8 @@ CMD=(
     --stable-seconds "${STABLE_SECONDS}"
     --max-item-attempts "${MAX_ITEM_ATTEMPTS}"
     --max-items-per-cycle "${MAX_ITEMS_PER_CYCLE}"
+    --max-concurrent-workers "${MAX_CONCURRENT_WORKERS}"
+    --stale-processing-seconds "${STALE_PROCESSING_SECONDS}"
     --api-provider "${API_PROVIDER}"
     --api-base-url "${API_BASE_URL}"
     --model "${MODEL_ID}"
@@ -74,6 +86,11 @@ CMD=(
     --thinking-mode "${THINKING_MODE}"
     --max-retries "${MAX_RETRIES}"
     --invalid-frame-policy "${INVALID_FRAME_POLICY}"
+    --network-command-retries "${NETWORK_COMMAND_RETRIES}"
+    --network-retry-delay-seconds "${NETWORK_RETRY_DELAY_SECONDS}"
+    --ssh-connect-timeout-seconds "${SSH_CONNECT_TIMEOUT_SECONDS}"
+    --ssh-server-alive-interval-seconds "${SSH_SERVER_ALIVE_INTERVAL_SECONDS}"
+    --ssh-server-alive-count-max "${SSH_SERVER_ALIVE_COUNT_MAX}"
 )
 
 if [[ "${DELETE_LOCAL_ON_SUCCESS}" == "1" ]]; then
@@ -102,4 +119,4 @@ fi
 
 CMD+=("${EXTRA_ARGS[@]}")
 
-"${CMD[@]}"
+exec "${CMD[@]}"

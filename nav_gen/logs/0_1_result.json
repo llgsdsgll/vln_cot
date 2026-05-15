@@ -1,7 +1,7 @@
 {
     "time cost": [],
     "fail tasks": [
-        "Please walk over to the kitchen and approach the faucet, then pause there. Next, head into the bedroom to reach the tablet and stop beside it"
+        "Hey Spot, please start by walking to the bed in the bedroom and waiting there. Once you're done, head over to the kitchen and stop right next to the refrigerator. Finally, make your way to the bathroom and halt by the washbasin"
     ],
     "mean task step": NaN,
     "mean nav step": NaN,
