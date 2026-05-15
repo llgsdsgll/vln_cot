@@ -1,0 +1,17 @@
+{
+    "time cost": [
+        0.001116115665435791,
+        0.0007048336267471314,
+        0.0015828318119049073,
+        0.0009607657909393311
+    ],
+    "fail tasks": [
+        "Please head to the kitchen and approach the microwave, then make your way to the office to stop by the computer. Finally, navigate to the bedroom and halt near the bed",
+        "Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and pause right beside the couch. Finally, head to the bathroom and stop near the bathtub so we can check the surroundings",
+        "First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the office area, locate the cup, and stop next to it"
+    ],
+    "mean task step": NaN,
+    "mean nav step": 3.0,
+    "mean task SR": 0.0,
+    "mean nav SR": 0.1
+}

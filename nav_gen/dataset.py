@@ -44,7 +44,7 @@ class TaskDataset(Dataset):
     
     def load_data(self, file):
         task = []
-        nums = os.listdir(file)
+        nums = [n for n in os.listdir(file) if os.path.isdir(os.path.join(file, n))]
         for num in nums:
             task_names = os.listdir(file + num)
             for task_name in task_names:

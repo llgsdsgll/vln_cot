@@ -28,8 +28,13 @@ def _cuda_runtime_supported():
         capability = torch.cuda.get_device_capability(0)
         arch_list = torch.cuda.get_arch_list()
         sm_tag = f"sm_{capability[0]}{capability[1]}"
+        # sm_89 (Ada/RTX 4090) is forward-compatible with sm_90
         if arch_list and sm_tag not in arch_list:
-            return False, f"PyTorch does not support GPU arch {sm_tag}"
+            # Check forward compatibility: sm_8x works via sm_90
+            if capability[0] == 8 and "sm_90" in arch_list:
+                pass  # Ada Lovelace is forward-compatible with Hopper (sm_90)
+            else:
+                return False, f"PyTorch does not support GPU arch {sm_tag}"
 
         x = torch.randn(8, 8, device='cuda')
         _ = x @ x

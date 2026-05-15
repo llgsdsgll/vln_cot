@@ -1,0 +1,79 @@
+2026-05-14 21:34:07,141 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,141 - split_task - INFO - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,141 - split_task - ERROR - Segment Trajectory: 0it [00:00, ?it/s]
+2026-05-14 21:34:07,141 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,141 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:34:07,143 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:34:07,143 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:34:07,144 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:34:07,144 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:34:07,145 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:34:07,146 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:34:07,146 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:34:07,147 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:34:07,148 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:34:07,148 - split_task - ERROR - 
+2026-05-14 21:34:07,148 - split_task - ERROR - Segment Trajectory: 5it [00:00, 715.43it/s]
+2026-05-14 21:34:07,149 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,151 - split_task - INFO - No segmented trajectories found in /mnt/data/gengshuang/vln_cot/nav_gen/task/trail_list.txt, skip step-task generation
+2026-05-14 21:34:07,151 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,152 - split_task - INFO - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,158 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,158 - split_task - INFO - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:34:07,159 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fe0c804fbb0>
+2026-05-14 21:40:21,317 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,317 - split_task - INFO - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,317 - split_task - ERROR - Segment Trajectory: 0it [00:00, ?it/s]
+2026-05-14 21:40:21,318 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,318 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:40:21,319 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:40:21,320 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:40:21,321 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:40:21,322 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:40:21,323 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:40:21,323 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:40:21,324 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:40:21,324 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:40:21,325 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:40:21,325 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Start your indoor logistics route by navigating to the refrigerator in the kitchen and pausing beside it to__fc2c65d7f8
+2026-05-14 21:40:21,326 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Start your indoor logistics route by navigating to the refrigerator in the kitchen and pausing beside it to__fc2c65d7f8
+2026-05-14 21:40:21,326 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Please navigate to the couch in the area connecting the bedroom and living room, and pause there once you ar__03679e748e
+2026-05-14 21:40:21,327 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Please navigate to the couch in the area connecting the bedroom and living room, and pause there once you ar__03679e748e
+2026-05-14 21:40:21,328 - split_task - ERROR - 
+2026-05-14 21:40:21,328 - split_task - ERROR - Segment Trajectory: 7it [00:00, 704.77it/s]
+2026-05-14 21:40:21,329 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,331 - split_task - INFO - No segmented trajectories found in /mnt/data/gengshuang/vln_cot/nav_gen/task/trail_list.txt, skip step-task generation
+2026-05-14 21:40:21,331 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,332 - split_task - INFO - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,338 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,339 - split_task - INFO - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:40:21,339 - split_task - ERROR - <split_task.LoggerWriter object at 0x7fa345efcc10>
+2026-05-14 21:43:13,093 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,093 - split_task - INFO - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,095 - split_task - ERROR - Segment Trajectory: 0it [00:00, ?it/s]
+2026-05-14 21:43:13,095 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,096 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by heading over to the tool box in the garage and wait there. Next, make your way to the dishwasher in__ff76bae9f2
+2026-05-14 21:43:13,097 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by heading over to the tool box in the garage and wait there. Next, make your way to the dishwasher in__ff76bae9f2
+2026-05-14 21:43:13,097 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:43:13,098 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please navigate to the hall to check the handbag, then head to the living room and stop by the couch, and fi__be7172503d
+2026-05-14 21:43:13,098 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:43:13,099 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Please head to the kitchen and approach the microwave, then make your way to the office to stop by the compu__1582a01c56
+2026-05-14 21:43:13,100 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:43:13,101 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating into the first bedroom and head toward the cabinet, coming to a pause right beside it. O__76121840df
+2026-05-14 21:43:13,101 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:43:13,102 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/3/Start by navigating to the kitchen and approaching the microwave, then make your way to the living room and__bc23907fd0
+2026-05-14 21:43:13,102 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:43:13,103 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/First, navigate to the towel bar in the second bathroom and pause right beside it. Then, head over to the of__d2cefc50b2
+2026-05-14 21:43:13,103 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Start your indoor logistics route by navigating to the refrigerator in the kitchen and pausing beside it to__fc2c65d7f8
+2026-05-14 21:43:13,104 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Start your indoor logistics route by navigating to the refrigerator in the kitchen and pausing beside it to__fc2c65d7f8
+2026-05-14 21:43:13,105 - split_task - INFO - /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Please navigate to the couch in the area connecting the bedroom and living room, and pause there once you ar__03679e748e
+2026-05-14 21:43:13,106 - split_task - INFO - Skip task without successful trajectory: /mnt/data/gengshuang/vln_cot/nav_gen/task/2/Please navigate to the couch in the area connecting the bedroom and living room, and pause there once you ar__03679e748e
+2026-05-14 21:43:13,106 - split_task - ERROR - 
+2026-05-14 21:43:13,107 - split_task - ERROR - Segment Trajectory: 8it [00:00, 756.98it/s]
+2026-05-14 21:43:13,107 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,110 - split_task - INFO - No segmented trajectories found in /mnt/data/gengshuang/vln_cot/nav_gen/task/trail_list.txt, skip step-task generation
+2026-05-14 21:43:13,110 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,111 - split_task - INFO - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,117 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,118 - split_task - INFO - <split_task.LoggerWriter object at 0x7f90068c3b20>
+2026-05-14 21:43:13,118 - split_task - ERROR - <split_task.LoggerWriter object at 0x7f90068c3b20>

@@ -1,10 +1,10 @@
 {
-    "time cost": [
-        0.14719620521125926
+    "time cost": [],
+    "fail tasks": [
+        "Please walk over to the kitchen and approach the faucet, then pause there. Next, head into the bedroom to reach the tablet and stop beside it"
     ],
-    "fail tasks": [],
-    "mean task step": 291.0,
-    "mean nav step": 97.0,
-    "mean task SR": 1.0,
-    "mean nav SR": 1.0
+    "mean task step": NaN,
+    "mean nav step": NaN,
+    "mean task SR": 0,
+    "mean nav SR": 0
 }

@@ -93,8 +93,9 @@ EOF
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-CONDA_EXE="${CONDA_EXE:-/home/gs/anaconda3/bin/conda}"
+CONDA_EXE="${CONDA_EXE:-/mnt/data/gengshuang/miniconda3/bin/conda}"
 CONDA_ENV="${CONDA_ENV:-lhvln-cu128}"
+PYTHON_BIN="${CONDA_EXE%/bin/conda}/envs/$CONDA_ENV/bin/python"
 REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_HOST="${REMOTE_HOST:-139.196.171.150}"
 REMOTE_PORT="${REMOTE_PORT:-6222}"
@@ -259,6 +260,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     --training-data-mode)
       TRAINING_DATA_MODE=1
+      VIDEO_EXPORT=0
+      VIZ_EXPORT=0
       shift
       ;;
     --keep-local-item)
@@ -832,9 +835,12 @@ export_item_videos() {
       echo "[INFO] Exporting video for ${item_id}: ${rel_task_json}" | tee -a "$item_video_log"
 
       local export_cmd=(
-        "$CONDA_EXE" run -n "$CONDA_ENV" env
+        env
+        PYTHONUNBUFFERED=1
+        MAGNUM_DEVICE="${NAVGEN_MAGNUM_DEVICE:-HeadlessEGL}"
         NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
-        python export_trajectory_rgb_video.py
+        "$PYTHON_BIN"
+        export_trajectory_rgb_video.py
         --task_json "$task_json"
         --output_video "$output_video"
         --fps "$VIDEO_FPS"
@@ -871,74 +877,77 @@ export_item_videos() {
       exported_task_videos=$((exported_task_videos + 1))
     done < <(find "$item_task_dir" -path '*/success/trial_1/task.json' -print0 2>/dev/null)
   else
-    echo "[INFO] MP4 export disabled for ${item_id}; exporting step-task frame assets + frame_info only." | tee -a "$item_video_log"
+    echo "[INFO] MP4 export disabled for ${item_id}; skipping task-level video export (will still export step_task frame assets)." | tee -a "$item_video_log"
   fi
 
   while IFS= read -r -d '' step_task_json; do
-    found_step_task_jsons=$((found_step_task_jsons + 1))
-    local rel_step_task_json="${step_task_json#$item_step_task_dir/}"
-    local step_task_stem="${rel_step_task_json%.json}"
-    local output_video="$item_video_dir/step_task/$step_task_stem.mp4"
+      found_step_task_jsons=$((found_step_task_jsons + 1))
+      local rel_step_task_json="${step_task_json#$item_step_task_dir/}"
+      local step_task_stem="${rel_step_task_json%.json}"
+      local output_video="$item_video_dir/step_task/$step_task_stem.mp4"
 
-    mkdir -p "$(dirname "$output_video")"
-    if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
-      echo "[INFO] Exporting step-task video for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
-    else
-      echo "[INFO] Exporting step-task frame assets for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
-    fi
-
-    local step_export_cmd=(
-      "$CONDA_EXE" run -n "$CONDA_ENV" env
-      NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
-      python export_trajectory_rgb_video.py
-      --task_json "$step_task_json"
-      --output_video "$output_video"
-      --fps "$VIDEO_FPS"
-      --width "$VIDEO_WIDTH"
-      --height "$VIDEO_HEIGHT"
-      --sensor_height "$RENDER_SENSOR_HEIGHT"
-      --hfov "$VIDEO_HFOV"
-      --sim_gpu_device "$SIM_GPU_DEVICE"
-      --frame_mode "$VIDEO_FRAME_MODE"
-      --output_codec "$VIDEO_CODEC"
-    )
-
-    if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
-      step_export_cmd+=(--annotate)
-    fi
-
-    if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
-      step_export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
-    fi
-
-    if [[ "$VIDEO_EXPORT" -eq 0 ]]; then
-      step_export_cmd+=(--skip-video-output)
-    fi
-
-    set +e
-    "${step_export_cmd[@]}" 2>&1 | tee -a "$item_video_log"
-    local step_export_status=${PIPESTATUS[0]}
-    set -e
-
-    if [[ "$step_export_status" -ne 0 ]]; then
-      exported_videos=$((exported_task_videos + exported_step_task_videos))
-      LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+      mkdir -p "$(dirname "$output_video")"
       if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
-        LAST_VIDEO_EXPORT_STATUS="step_task_export_failed:${step_export_status}"
-        echo "[ERROR] Step-task video export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+        echo "[INFO] Exporting step-task video for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
       else
-        LAST_VIDEO_EXPORT_STATUS="step_task_frame_assets_failed:${step_export_status}"
-        echo "[ERROR] Step-task frame asset export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+        echo "[INFO] Exporting step-task frame assets for ${item_id}: ${rel_step_task_json}" | tee -a "$item_video_log"
       fi
-      return 1
-    fi
 
-    if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
-      exported_step_task_videos=$((exported_step_task_videos + 1))
-    else
-      exported_step_task_assets=$((exported_step_task_assets + 1))
-    fi
-  done < <(find "$item_step_task_dir" -type f -name '*.json' ! -name '*.subtasks.json' ! -name '*.frame_info.json' -print0 2>/dev/null)
+      local step_export_cmd=(
+        env
+        PYTHONUNBUFFERED=1
+        MAGNUM_DEVICE="${NAVGEN_MAGNUM_DEVICE:-HeadlessEGL}"
+        NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
+        "$PYTHON_BIN"
+        export_trajectory_rgb_video.py
+        --task_json "$step_task_json"
+        --output_video "$output_video"
+        --fps "$VIDEO_FPS"
+        --width "$VIDEO_WIDTH"
+        --height "$VIDEO_HEIGHT"
+        --sensor_height "$RENDER_SENSOR_HEIGHT"
+        --hfov "$VIDEO_HFOV"
+        --sim_gpu_device "$SIM_GPU_DEVICE"
+        --frame_mode "$VIDEO_FRAME_MODE"
+        --output_codec "$VIDEO_CODEC"
+      )
+
+      if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_ANNOTATE" -eq 1 ]]; then
+        step_export_cmd+=(--annotate)
+      fi
+
+      if [[ "$VIDEO_EXPORT" -eq 1 ]] && [[ "$VIDEO_TARGET_BOXES" -eq 1 ]]; then
+        step_export_cmd+=(--target_boxes --target_box_scope "$VIDEO_TARGET_BOX_SCOPE")
+      fi
+
+      if [[ "$VIDEO_EXPORT" -eq 0 ]]; then
+        step_export_cmd+=(--skip-video-output)
+      fi
+
+      set +e
+      "${step_export_cmd[@]}" 2>&1 | tee -a "$item_video_log"
+      local step_export_status=${PIPESTATUS[0]}
+      set -e
+
+      if [[ "$step_export_status" -ne 0 ]]; then
+        exported_videos=$((exported_task_videos + exported_step_task_videos))
+        LAST_VIDEO_EXPORT_COUNT="$exported_videos"
+        if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+          LAST_VIDEO_EXPORT_STATUS="step_task_export_failed:${step_export_status}"
+          echo "[ERROR] Step-task video export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+        else
+          LAST_VIDEO_EXPORT_STATUS="step_task_frame_assets_failed:${step_export_status}"
+          echo "[ERROR] Step-task frame asset export failed for ${rel_step_task_json}; exit=${step_export_status}" | tee -a "$item_video_log" >&2
+        fi
+        return 1
+      fi
+
+      if [[ "$VIDEO_EXPORT" -eq 1 ]]; then
+        exported_step_task_videos=$((exported_step_task_videos + 1))
+      else
+        exported_step_task_assets=$((exported_step_task_assets + 1))
+      fi
+    done < <(find "$item_step_task_dir" -type f -name '*.json' ! -name '*.subtasks.json' ! -name '*.frame_info.json' -print0 2>/dev/null)
 
   if [[ "$found_task_jsons" -eq 0 ]] && [[ "$found_step_task_jsons" -eq 0 ]]; then
     LAST_VIDEO_EXPORT_STATUS="no_task_or_step_task_json"
@@ -981,9 +990,12 @@ export_item_viz() {
     echo "[INFO] Exporting viz for ${item_id}: ${rel_task_json}" | tee -a "$item_viz_log"
 
     local viz_cmd=(
-      "$CONDA_EXE" run -n "$CONDA_ENV" env
+      env
+      PYTHONUNBUFFERED=1
+      MAGNUM_DEVICE="${NAVGEN_MAGNUM_DEVICE:-HeadlessEGL}"
       NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
-      python visualize_goal_viewpoints_topdown.py
+      "$PYTHON_BIN"
+      visualize_goal_viewpoints_topdown.py
       --task-json "$task_json"
       --output "$out_png"
       --render-sensor-height "$RENDER_SENSOR_HEIGHT"
@@ -1016,9 +1028,12 @@ export_item_viz() {
     mkdir -p "$(dirname "$out_png")"
     echo "[INFO] Exporting viz (fail) for ${item_id}: ${rel_config}" | tee -a "$item_viz_log"
     local fail_viz_cmd=(
-      "$CONDA_EXE" run -n "$CONDA_ENV" env
+      env
+      PYTHONUNBUFFERED=1
+      MAGNUM_DEVICE="${NAVGEN_MAGNUM_DEVICE:-HeadlessEGL}"
       NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE"
-      python visualize_goal_viewpoints_topdown.py
+      "$PYTHON_BIN"
+      visualize_goal_viewpoints_topdown.py
       --task-json "$config_json"
       --output "$out_png"
       --render-sensor-height "$RENDER_SENSOR_HEIGHT"
@@ -1219,17 +1234,18 @@ while [[ "$success_count" -lt "$LOOP_COUNT" ]]; do
   echo "[INFO] Running ${item_id} (attempt ${attempt_count}, success ${success_count}/${LOOP_COUNT})"
 
   set +e
-  "$CONDA_EXE" run -n "$CONDA_ENV" env \
-    NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE" \
-    NAVGEN_RAM_DEVICE="$RAM_DEVICE" \
-    python main.py \
-      "${FORWARDED_ARGS[@]}" \
-      --loop 1 \
-      --render_sensor_height "$RENDER_SENSOR_HEIGHT" \
-      --task_path "${item_task_dir}/" \
-      --step_task_path "${item_step_task_dir}/" \
-      --ram_logs "$item_ram_log" \
-      --split_save_path "$item_trail_list" 2>&1 | tee "$item_stdout_log"
+  PYTHONUNBUFFERED=1 \
+  MAGNUM_DEVICE="${NAVGEN_MAGNUM_DEVICE:-HeadlessEGL}" \
+  NAVGEN_SIM_GPU_DEVICE="$SIM_GPU_DEVICE" \
+  NAVGEN_RAM_DEVICE="$RAM_DEVICE" \
+  "$PYTHON_BIN" main.py \
+    "${FORWARDED_ARGS[@]}" \
+    --loop 1 \
+    --render_sensor_height "$RENDER_SENSOR_HEIGHT" \
+    --task_path "${item_task_dir}/" \
+    --step_task_path "${item_step_task_dir}/" \
+    --ram_logs "$item_ram_log" \
+    --split_save_path "$item_trail_list" 2>&1 | tee "$item_stdout_log"
   item_status=${PIPESTATUS[0]}
   set -e
 
