@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from concurrent.futures import Future, ProcessPoolExecutor
 import logging
 import sqlite3
 import time
@@ -22,11 +23,16 @@ from typing import Any
 
 from navgen_batch_cot_worker import (
     DEFAULT_LOCAL_STAGE_ROOT,
+    DEFAULT_NETWORK_COMMAND_RETRIES,
+    DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
     DEFAULT_OUTPUT_SUFFIX,
     DEFAULT_REMOTE_HOST,
     DEFAULT_REMOTE_PORT,
     DEFAULT_REMOTE_ROOT,
     DEFAULT_REMOTE_USER,
+    DEFAULT_SSH_CONNECT_TIMEOUT_SECONDS,
+    DEFAULT_SSH_SERVER_ALIVE_COUNT_MAX,
+    DEFAULT_SSH_SERVER_ALIVE_INTERVAL_SECONDS,
     DEFAULT_STABLE_SECONDS,
     ProcessResult,
     SSHConfig,
@@ -42,6 +48,7 @@ from vln_data_synthesizer import API_PROVIDER_CHOICES, THINKING_MODE_CHOICES
 LOGGER = logging.getLogger("navgen_batch_cot_watcher")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STATE_DB = PROJECT_ROOT / "debug" / "navgen_batch_cot_state.sqlite3"
+DEFAULT_STALE_PROCESSING_SECONDS = 1800.0
 
 
 def utc_now_iso() -> str:
@@ -84,10 +91,25 @@ def fetch_remote_summary_text(ssh_config: SSHConfig, summary_path: str) -> str:
             "ssh",
             "-p",
             str(ssh_config.port),
+            *[
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                f"ConnectTimeout={ssh_config.connect_timeout_seconds}",
+                "-o",
+                f"ServerAliveInterval={ssh_config.server_alive_interval_seconds}",
+                "-o",
+                f"ServerAliveCountMax={ssh_config.server_alive_count_max}",
+                "-o",
+                "TCPKeepAlive=yes",
+            ],
             f"{ssh_config.user}@{ssh_config.host}",
             "cat",
             summary_path,
-        ]
+        ],
+        retries=ssh_config.network_command_retries,
+        retry_delay_seconds=ssh_config.network_retry_delay_seconds,
+        retry_on_network_failure=True,
     )
     return result.stdout
 
@@ -190,6 +212,33 @@ def select_candidate_items(
     )
 
 
+def reset_processing_items(
+    conn: sqlite3.Connection,
+    stale_processing_seconds: float,
+) -> int:
+    now = utc_now_iso()
+    cutoff_expr = f"-{int(max(1, stale_processing_seconds))} seconds"
+    cursor = conn.execute(
+        """
+        UPDATE items
+        SET state = 'discovered',
+            last_error = COALESCE(
+                last_error,
+                'watcher restarted and stale processing item was re-queued'
+            ),
+            updated_at = ?
+        WHERE state = 'processing'
+          AND (
+            processing_started_at IS NULL
+            OR datetime(processing_started_at) <= datetime('now', ?)
+          )
+        """,
+        (now, cutoff_expr),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
 def mark_item_waiting(
     conn: sqlite3.Connection,
     item_id: str,
@@ -279,11 +328,10 @@ def summarize_readiness(readiness: dict[str, Any]) -> str:
     return f"ready={readiness.get('ready')} problems={problems}"
 
 
-def process_candidate_item(
-    conn: sqlite3.Connection,
+def inspect_candidate_item(
     worker_config: WorkerConfig,
     item_row: sqlite3.Row,
-) -> ProcessResult | None:
+) -> tuple[bool, str]:
     item_id = str(item_row["item_id"])
     remote_item_dir = str(item_row["remote_item_dir"])
     readiness = inspect_remote_item(
@@ -294,33 +342,39 @@ def process_candidate_item(
     )
     if not readiness.get("ready"):
         message = summarize_readiness(readiness)
-        LOGGER.info("%s not ready yet: %s", item_id, message)
-        mark_item_waiting(conn, item_id, message)
-        return None
+        return False, message
+    return True, summarize_readiness(readiness)
 
-    mark_item_processing(conn, item_id)
-    LOGGER.info("%s is ready. Start processing remote item.", item_id)
-    try:
-        result = process_remote_item(
-            config=worker_config,
-            remote_item_dir=remote_item_dir,
-        )
-    except Exception as exc:  # noqa: BLE001
-        error_text = f"{type(exc).__name__}: {exc}"
-        mark_item_failed(conn, item_id, error_text)
-        LOGGER.exception("%s processing failed", item_id)
-        return None
 
-    mark_item_done(conn, item_id)
-    LOGGER.info(
-        "%s done | total_tasks=%d processed=%d skipped_existing=%d uploaded=%d",
-        item_id,
-        result.total_tasks,
-        result.processed_tasks,
-        result.skipped_existing_tasks,
-        result.uploaded_tasks,
-    )
-    return result
+def poll_running_jobs(
+    conn: sqlite3.Connection,
+    running_jobs: dict[str, dict[str, Any]],
+) -> int:
+    completed = 0
+    for item_id, job in list(running_jobs.items()):
+        future: Future = job["future"]
+        if not future.done():
+            continue
+        completed += 1
+        try:
+            result: ProcessResult = future.result()
+        except Exception as exc:  # noqa: BLE001
+            error_text = f"{type(exc).__name__}: {exc}"
+            mark_item_failed(conn, item_id, error_text)
+            LOGGER.exception("%s processing failed", item_id)
+        else:
+            mark_item_done(conn, item_id)
+            LOGGER.info(
+                "%s done | total_tasks=%d processed=%d skipped_existing=%d uploaded=%d",
+                item_id,
+                result.total_tasks,
+                result.processed_tasks,
+                result.skipped_existing_tasks,
+                result.uploaded_tasks,
+            )
+        finally:
+            running_jobs.pop(item_id, None)
+    return completed
 
 
 def run_watcher(args: argparse.Namespace) -> None:
@@ -331,6 +385,11 @@ def run_watcher(args: argparse.Namespace) -> None:
         host=args.remote_host,
         port=args.remote_port,
         user=args.remote_user,
+        network_command_retries=args.network_command_retries,
+        network_retry_delay_seconds=args.network_retry_delay_seconds,
+        connect_timeout_seconds=args.ssh_connect_timeout_seconds,
+        server_alive_interval_seconds=args.ssh_server_alive_interval_seconds,
+        server_alive_count_max=args.ssh_server_alive_count_max,
     )
     worker_config = WorkerConfig(
         ssh=ssh_config,
@@ -354,49 +413,114 @@ def run_watcher(args: argparse.Namespace) -> None:
     )
 
     with open_db(db_path) as conn:
-        while True:
-            summary_text = fetch_remote_summary_text(ssh_config, args.summary_path)
-            rows = parse_summary_rows(summary_text)
-            upsert_count = upsert_items_from_summary(
-                conn=conn,
-                rows=rows,
-                remote_root=args.remote_root,
-            )
-            LOGGER.info(
-                "summary scan complete: %d rows, %d ok items upserted.",
-                len(rows),
-                upsert_count,
+        reset_count = reset_processing_items(
+            conn,
+            stale_processing_seconds=args.stale_processing_seconds,
+        )
+        if reset_count:
+            LOGGER.warning(
+                "reset %d processing item(s) back to discovered after watcher restart.",
+                reset_count,
             )
 
-            candidates = select_candidate_items(
-                conn=conn,
-                max_item_attempts=args.max_item_attempts,
-                max_items_per_cycle=args.max_items_per_cycle,
-            )
-            if not candidates:
-                LOGGER.info("no pending ok items found.")
-            else:
-                LOGGER.info("found %d candidate item(s) this cycle.", len(candidates))
+        running_jobs: dict[str, dict[str, Any]] = {}
+        total_started = 0
 
-            processed_in_cycle = 0
-            for item_row in candidates:
-                result = process_candidate_item(conn, worker_config, item_row)
-                if result is not None:
-                    processed_in_cycle += 1
-                if args.once and args.max_total_items is not None:
-                    if processed_in_cycle >= args.max_total_items:
+        with ProcessPoolExecutor(max_workers=args.max_concurrent_workers) as executor:
+            while True:
+                poll_running_jobs(conn, running_jobs)
+
+                try:
+                    summary_text = fetch_remote_summary_text(ssh_config, args.summary_path)
+                    rows = parse_summary_rows(summary_text)
+                    upsert_count = upsert_items_from_summary(
+                        conn=conn,
+                        rows=rows,
+                        remote_root=args.remote_root,
+                    )
+                    LOGGER.info(
+                        "summary scan complete: %d rows, %d ok items upserted.",
+                        len(rows),
+                        upsert_count,
+                    )
+
+                    available_slots = max(0, args.max_concurrent_workers - len(running_jobs))
+                    if available_slots == 0:
                         LOGGER.info(
-                            "--once reached max_total_items=%d, exiting.",
-                            args.max_total_items,
+                            "all %d worker slot(s) are busy.",
+                            args.max_concurrent_workers,
                         )
-                        return
+                    else:
+                        candidates = select_candidate_items(
+                            conn=conn,
+                            max_item_attempts=args.max_item_attempts,
+                            max_items_per_cycle=min(args.max_items_per_cycle, available_slots),
+                        )
+                        if not candidates:
+                            LOGGER.info("no pending ok items found.")
+                        else:
+                            LOGGER.info(
+                                "found %d candidate item(s) this cycle, %d slot(s) available.",
+                                len(candidates),
+                                available_slots,
+                            )
 
-            if args.once:
-                LOGGER.info("--once mode finished one summary scan.")
-                return
+                        for item_row in candidates:
+                            item_id = str(item_row["item_id"])
+                            remote_item_dir = str(item_row["remote_item_dir"])
+                            try:
+                                ready, message = inspect_candidate_item(worker_config, item_row)
+                            except Exception as exc:  # noqa: BLE001
+                                error_text = f"readiness check failed: {type(exc).__name__}: {exc}"
+                                LOGGER.warning("%s readiness check failed: %s", item_id, error_text)
+                                mark_item_waiting(conn, item_id, error_text)
+                                continue
 
-            LOGGER.info("sleeping %.1f seconds before next poll.", args.poll_interval)
-            time.sleep(args.poll_interval)
+                            if not ready:
+                                LOGGER.info("%s not ready yet: %s", item_id, message)
+                                mark_item_waiting(conn, item_id, message)
+                                continue
+
+                            mark_item_processing(conn, item_id)
+                            future = executor.submit(
+                                process_remote_item,
+                                worker_config,
+                                remote_item_dir,
+                            )
+                            running_jobs[item_id] = {
+                                "future": future,
+                                "remote_item_dir": remote_item_dir,
+                            }
+                            total_started += 1
+                            LOGGER.info(
+                                "%s is ready. Submitted to worker pool (%d/%d running).",
+                                item_id,
+                                len(running_jobs),
+                                args.max_concurrent_workers,
+                            )
+                            if args.once and args.max_total_items is not None:
+                                if total_started >= args.max_total_items:
+                                    break
+                except Exception as exc:  # noqa: BLE001
+                    LOGGER.exception(
+                        "summary scan failed but watcher will keep running: %s",
+                        exc,
+                    )
+
+                if args.once:
+                    while running_jobs:
+                        poll_running_jobs(conn, running_jobs)
+                        if running_jobs:
+                            time.sleep(1.0)
+                    LOGGER.info("--once mode finished one summary scan.")
+                    return
+
+                LOGGER.info(
+                    "sleeping %.1f seconds before next poll. running_jobs=%d",
+                    args.poll_interval,
+                    len(running_jobs),
+                )
+                time.sleep(args.poll_interval)
 
 
 def parse_args() -> argparse.Namespace:
@@ -456,8 +580,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-items-per-cycle",
         type=int,
-        default=1,
+        default=5,
         help="Maximum candidate items processed in one polling cycle.",
+    )
+    parser.add_argument(
+        "--max-concurrent-workers",
+        type=int,
+        default=5,
+        help="Maximum number of item workers running in parallel.",
+    )
+    parser.add_argument(
+        "--stale-processing-seconds",
+        type=float,
+        default=DEFAULT_STALE_PROCESSING_SECONDS,
+        help="Only reset processing items older than this threshold on watcher startup.",
     )
     parser.add_argument(
         "--once",
@@ -571,6 +707,36 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Optional debug limit on the number of step_task files per item.",
+    )
+    parser.add_argument(
+        "--network-command-retries",
+        type=int,
+        default=DEFAULT_NETWORK_COMMAND_RETRIES,
+        help="Retries for ssh/rsync/network shell commands.",
+    )
+    parser.add_argument(
+        "--network-retry-delay-seconds",
+        type=float,
+        default=DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
+        help="Base retry delay for ssh/rsync/network shell commands.",
+    )
+    parser.add_argument(
+        "--ssh-connect-timeout-seconds",
+        type=int,
+        default=DEFAULT_SSH_CONNECT_TIMEOUT_SECONDS,
+        help="SSH connect timeout in seconds.",
+    )
+    parser.add_argument(
+        "--ssh-server-alive-interval-seconds",
+        type=int,
+        default=DEFAULT_SSH_SERVER_ALIVE_INTERVAL_SECONDS,
+        help="SSH ServerAliveInterval in seconds.",
+    )
+    parser.add_argument(
+        "--ssh-server-alive-count-max",
+        type=int,
+        default=DEFAULT_SSH_SERVER_ALIVE_COUNT_MAX,
+        help="SSH ServerAliveCountMax.",
     )
     parser.add_argument(
         "--verbose",

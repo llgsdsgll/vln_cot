@@ -164,8 +164,8 @@ ACTION_MAP: dict[int, str] = {
 }
 
 VALID_ACTIONS = set(ACTION_MAP.values())
-MAX_STEP_CHARS = 400
-MAX_TOTAL_CHARS = 1600
+MAX_STEP_CHARS = 500
+MAX_TOTAL_CHARS = 2000
 LOCAL_API_BASE_URL = "http://localhost:8000/v1"
 LOCAL_MODEL_NAME = "/mnt/data-cpfs/gengshuang/models/Qwen3.6-397B-A17B-FP8"
 DASHSCOPE_API_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
