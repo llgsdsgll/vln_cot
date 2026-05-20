@@ -240,7 +240,11 @@ def configure_logging(verbose: bool = False) -> None:
     logging.basicConfig(
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+        force=True,
     )
+    # Ensure stderr handler flushes after every record (critical for nohup/redirected output)
+    for handler in logging.getLogger().handlers:
+        handler.flush = lambda: handler.stream.flush()
 
 
 def _ssh_host(config: SSHConfig) -> str:

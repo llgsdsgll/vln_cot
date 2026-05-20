@@ -1,10 +1,10 @@
 {
-    "time cost": [],
-    "fail tasks": [
-        "Hey Spot, please start by walking to the bed in the bedroom and waiting there. Once you're done, head over to the kitchen and stop right next to the refrigerator. Finally, make your way to the bathroom and halt by the washbasin"
+    "time cost": [
+        0.38085510571797687
     ],
-    "mean task step": NaN,
-    "mean nav step": NaN,
-    "mean task SR": 0,
-    "mean nav SR": 0
+    "fail tasks": [],
+    "mean task step": 75.0,
+    "mean nav step": 37.5,
+    "mean task SR": 1.0,
+    "mean nav SR": 1.0
 }
